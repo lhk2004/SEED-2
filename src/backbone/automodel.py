@@ -6,15 +6,12 @@ from transformers import (
     AutoConfig,
     AutoModel,
     AutoModelForCausalLM,
-    AutoModelForMaskedLM,
     DynamicCache,
 )
 from transformers.modeling_outputs import (
     BaseModelOutputWithPast,
     CausalLMOutputWithPast,
 )
-
-from src.backbone.custom_modeling_qwen3 import CustomQwen3ForCausalLM
 
 try:
     from torch.nn.attention.flex_attention import BlockMask
@@ -24,7 +21,6 @@ except ImportError:
 AUTO_MODEL_CLS = {
     "AutoModel": AutoModel,
     "AutoModelForCausalLM": AutoModelForCausalLM,
-    "AutoModelForMaskedLM": AutoModelForMaskedLM,
 }
 
 
@@ -33,11 +29,7 @@ class AutoModelFromPreTrained(nn.Module):
 
     def __init__(
         self,
-        automodel_cls: Literal[
-            "AutoModel",
-            "AutoModelForCausalLM",
-            "AutoModelForMaskedLM",
-        ],
+        automodel_cls: Literal["AutoModel", "AutoModelForCausalLM"],
         pretrained_model_name_or_path: str,
         trust_remote_code: bool = True,
         num_layers: int = -1,
@@ -55,8 +47,10 @@ class AutoModelFromPreTrained(nn.Module):
                 trust_remote_code=trust_remote_code,
                 **automodel_init_kwargs,
             )
-            self.model = CustomQwen3ForCausalLM(auto_config)
-            # self.model = AUTO_MODEL_CLS[automodel_cls].from_config(auto_config)
+            # Train from scratch in fp32, regardless of the checkpoint's torch_dtype.
+            self.model = AUTO_MODEL_CLS[automodel_cls].from_config(
+                auto_config, torch_dtype=torch.float32
+            )
         else:
             self.model = AUTO_MODEL_CLS[automodel_cls].from_pretrained(
                 pretrained_model_name_or_path,

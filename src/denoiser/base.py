@@ -1,5 +1,4 @@
 import copy
-import inspect
 import sys
 from abc import ABC, abstractmethod
 from collections import OrderedDict
@@ -26,15 +25,8 @@ from transformers.modeling_outputs import ModelOutput
 # noinspection PyUnresolvedReferences
 from src.backbone.automodel import AutoModelFromPreTrained  # noqa: F401
 from src.backbone.encoder_decoder import (  # noqa: F401
-    LLMasEncoderDecoder,
     LLMasEncoderDecoderShareKV,
     LLMasEncoderDecoderShareKVEncoderGen,
-)
-from src.noise_schedule.noise_schedules import (  # noqa: F401
-    CosineNoise,
-    ExponentialNoise,
-    LinearNoise,
-    LogarithmicNoise,
 )
 
 
@@ -48,9 +40,6 @@ class DenoiserInput(OrderedDict):
     past_key_values: Optional[Union[torch.FloatTensor, Cache]] = None
     context_mask: Optional[torch.FloatTensor] = None
     tokens_mask: Optional[torch.FloatTensor] = None  # (B, L)
-    t: Optional[torch.FloatTensor] = None  # (B,) | # (B, L)
-    alpha_t: Optional[torch.FloatTensor] = None  # (B,) | (B, 1|L) | (B, 1|L, 1)
-    alpha_t_prime: Optional[torch.FloatTensor] = None  # (B,) | (B, 1|L) | (B, 1|L, 1)
     backbone_kwargs: dict[str, Any] = field(default_factory=dict)
 
 
@@ -89,9 +78,7 @@ class DenoiserConfig(PretrainedConfig):
         self,
         length: Optional[int] = None,
         backbone_config: Optional[Dict[str, Any]] = None,
-        noise_config: Optional[Dict[str, Any]] = None,
         tokenization_config: Optional[Dict[str, Any]] = None,
-        time_conditioned_backbone: Optional[bool] = None,
         attn_backend: str = "sdpa",  # "sdpa", "flash_attention_2", "flex_attention"
         train_on_context: bool = False,
         **kwargs,
@@ -112,10 +99,8 @@ class DenoiserConfig(PretrainedConfig):
             else:
                 setattr(self, v, None)
         self.backbone_config = backbone_config
-        self.noise_config = noise_config
         self.tokenization_config = tokenization_config
         self.length = length
-        self.time_conditioned_backbone = time_conditioned_backbone
         self.attn_backend = attn_backend
         self.train_on_context = train_on_context
 
@@ -123,7 +108,7 @@ class DenoiserConfig(PretrainedConfig):
 class Denoiser(ABC, PreTrainedModel):
     """Abstract base class for denoising models.
 
-    This class defines the interface for AR, Diffusion, and Flow-based parametrizations.
+    This class defines the interface for the AR and SEED parametrizations.
     """
 
     config_class = DenoiserConfig
@@ -169,26 +154,13 @@ class Denoiser(ABC, PreTrainedModel):
             config.tokenizer_name,
             trust_remote_code=True,
         )
-        self.noise_schedule = (
-            hydra.utils.instantiate(config.noise_config)
-            if config.noise_config is not None
-            else None
-        )
-        self.time_conditioned_backbone = (
-            config.time_conditioned_backbone
-            if config.time_conditioned_backbone is not None
-            else "noise" in inspect.getfullargspec(self.backbone.forward).args
-        )
         # List that can contain any parameters that should not be pushed to HF,
         # e.g., registered buffers for static attention masks
         self.skip_params_for_push = []
 
     @staticmethod
     def _is_transformer_layer(module: torch.nn.Module) -> bool:
-        return module.__class__.__name__ in {
-            "Qwen3DecoderLayer",
-            "CustomQwen3DecoderLayer",
-        }
+        return module.__class__.__name__ in {"Qwen3DecoderLayer"}
 
     def fsdp_wrap_fn(self, module: torch.nn.Module) -> bool:
         return self._is_transformer_layer(module)
@@ -208,7 +180,7 @@ class Denoiser(ABC, PreTrainedModel):
         Parameters:
             input_ids (LongTensor): Input tensor to the model.
             attention_mask (Optional[FloatTensor]): Attention mask for the model.
-            t (Optional[FloatTensor]): Time step for the model.
+            t (Optional[FloatTensor]): Timestep sampled by the collator (unused).
             past_key_values (Optional[Cache]): Past key values for the model.
         Returns:
             Denoiser inputs.
@@ -317,15 +289,6 @@ class Denoiser(ABC, PreTrainedModel):
         Returns:
             Backbone output (ModelOutput instance).
         """
-        if self.time_conditioned_backbone:
-            return self.backbone(
-                denoiser_inputs.xt,
-                attention_mask=denoiser_inputs.attention_mask,
-                past_key_values=denoiser_inputs.past_key_values,
-                noise=denoiser_inputs.alpha_t,
-                **denoiser_inputs.backbone_kwargs,
-                **backbone_kwargs,
-            )
         return self.backbone(
             denoiser_inputs.xt,
             attention_mask=denoiser_inputs.attention_mask,
@@ -352,7 +315,7 @@ class Denoiser(ABC, PreTrainedModel):
             input_ids (LongTensor): Input tensor to the model.
             attention_mask (Optional[FloatTensor]): Attention mask for the model.
             context_mask (Optional[FloatTensor]): Indicator for context tokens.
-            t (Optional[FloatTensor]): Denoising time step for the model.
+            t (Optional[FloatTensor]): Timestep sampled by the collator (unused).
             past_key_values (Optional[Cache]): KV cache.
             compute_loss (Optional[bool]): Flag to compute loss.
 
@@ -396,17 +359,6 @@ class Denoiser(ABC, PreTrainedModel):
             nlls=nlls,
             other_loss_terms=other_loss_terms,
         )
-
-    @staticmethod
-    def _sample_categorical(categorical_probs, do_sample=True):
-        """Helper function to sample from a categorical distribution."""
-        categorical_probs = categorical_probs.to(torch.float64)
-        if not do_sample:
-            return categorical_probs.argmax(dim=-1)
-        gumbel_norm = (1e-10 - (torch.rand_like(categorical_probs) + 1e-10).log()).to(
-            categorical_probs.dtype
-        )
-        return (categorical_probs / gumbel_norm).argmax(dim=-1)
 
     @staticmethod
     def _preprocess_attention_mask(attention_mask, dtype):

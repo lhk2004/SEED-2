@@ -8,8 +8,7 @@ defaults:
   - dataset@eval_dataset: ???
   - metrics: [loss, nll, bpd, perplexity]
   - metrics@eval_metrics: [loss, nll, bpd, perplexity]
-  - model: mdlm
-  - noise@model.config.noise_config: linear
+  - model: seed
   - model/backbone@model.config.backbone_config: ???
   - _self_
 
@@ -17,8 +16,8 @@ run_name: ???
 seed: 1
 backend: ${set_backend:}
 pretrained_model_name_or_path: null  # Use for pretrained backbones
-block_size: null  # Use for BD3LMs
-eval_block_size: ${block_size} # Use for BD3LMs
+block_size: null  # Use for SEED
+eval_block_size: ${block_size} # Use for SEED
 
 train_dataloader:
   _target_: torch.utils.data.DataLoader

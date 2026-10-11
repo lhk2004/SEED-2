@@ -224,7 +224,7 @@ def save_pretrained_or_push_to_hub(
     exec(f"from {model_cls_path} import {type(model).__name__}")
     exec(f"from {model_cls_path} import {type(model.config).__name__}")
     exec(f"{type(model.config).__name__}.register_for_auto_class()")
-    for automodel in ["AutoModel", "AutoModelForCausalLM", "AutoModelForMaskedLM"]:
+    for automodel in ["AutoModel", "AutoModelForCausalLM"]:
         if automodel in model.config.__class__.auto_map.keys():
             exec(f'{type(model).__name__}.register_for_auto_class("{automodel}")')
 
@@ -235,12 +235,6 @@ def save_pretrained_or_push_to_hub(
             r"^([\w.]+)\.",
             lambda m: f"{m.group(1).replace('.', '_')}.",
             re.sub(r"^src\.", "", model.config.backbone_config["_target_"]),
-        )
-    if re.match(r"^src\.", model.config.noise_config["_target_"]):
-        model.config.noise_config["_target_"] = re.sub(
-            r"^([\w.]+)\.",
-            lambda m: f"{m.group(1).replace('.', '_')}.",
-            re.sub(r"^src\.", "", model.config.noise_config["_target_"]),
         )
     log.debug("Updated model.config:")
     log.debug(model.config)
@@ -291,7 +285,6 @@ def save_pretrained_or_push_to_hub(
         project_root / "src/denoiser/base.py": "denoiser_base.py",
         project_root / model_file_path: model_file_path.split("/")[-1],
         project_root / "src/backbone": "backbone",
-        project_root / "src/noise_schedule": "noise_schedule",
     }
     for src_path, dest_name in paths_to_copy.items():
         dest = dest_path / dest_name

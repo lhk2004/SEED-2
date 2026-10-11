@@ -1,8 +1,10 @@
 defaults:
-  - e2d2@_here_
+  - base@_here_
   - _self_
 
 _target_: src.denoiser.diffusion.SEED
 config:
   _target_: src.denoiser.diffusion.SEEDConfig
+  block_size: ${block_size}
+  eval_block_size: ${block_size}
   decoder_loss_lambda: 1.0

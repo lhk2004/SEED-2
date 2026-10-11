@@ -9,10 +9,10 @@
 CONDA_SHELL="$(conda info --base)/etc/profile.d/conda.sh"
 source "${CONDA_SHELL}"
 if [ -z "${CONDA_PREFIX}" ]; then
-    conda activate e2d-env
- elif [[ "${CONDA_PREFIX}" != *"/e2d-env" ]]; then
+    conda activate seed-env
+ elif [[ "${CONDA_PREFIX}" != *"/seed-env" ]]; then
   conda deactivate
-  conda activate e2d-env
+  conda activate seed-env
 fi
 
 # W&B / HF Setup

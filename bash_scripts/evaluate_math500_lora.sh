@@ -1,7 +1,4 @@
 #!/bin/bash
-# Evaluate a frozen-target SEED-LoRA checkpoint on all 500 MATH-500 test problems.
-# From any directory:
-#   MODEL_PATH=/path/to/training/run bash bash_scripts/evaluate_math500_lora.sh
 set -eo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,9 +25,6 @@ fi
 OUTPUT_PATH=${OUTPUT_PATH:-"${MODEL_PATH}/math500_output/seed_lora_${CKPT}_L${MAX_NEW_TOKENS}_block${BLOCK_SIZE}_conf${CONF_SEG}_adaptive${TRACK_ACC_RATE}_tree${TREE_ATTN}_sample${DO_SAMPLE}"}
 mkdir -p "${OUTPUT_PATH}"
 
-# Reuse GSM8K's non-thinking chat prompt, frozen-target generation, and reports.
-# MATH scoring preserves nested LaTeX in the final box. Stop at EOS/token budget:
-# the GSM8K box regex would stop early on answers such as \boxed{\frac{1}{2}}.
 accelerate launch scripts/eval/harness_eval.py \
   hydra.output_subdir=null \
   hydra.run.dir="${PWD}" \

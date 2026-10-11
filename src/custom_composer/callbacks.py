@@ -390,30 +390,6 @@ class LogProfilingTraceToWandb(Callback):
         dist.barrier()
 
 
-class LogSampledTimestep(Callback):
-    def batch_end(self, state: State, logger: Logger) -> None:
-        sampled_t = state.batch.t
-        logger.log_metrics(
-            {
-                f"sampled_t/{state.dataloader_label}/mean": sampled_t.mean().item(),
-                f"sampled_t/{state.dataloader_label}/std": sampled_t.std().item(),
-                f"sampled_t/{state.dataloader_label}/max": sampled_t.max().item(),
-                f"sampled_t/{state.dataloader_label}/min": sampled_t.min().item(),
-            },
-        )
-
-    def eval_batch_end(self, state: State, logger: Logger) -> None:
-        sampled_t = state.batch["t"]
-        logger.log_metrics(
-            {
-                f"sampled_t/{state.dataloader_label}/mean": sampled_t.mean().item(),
-                f"sampled_t/{state.dataloader_label}/std": sampled_t.std().item(),
-                f"sampled_t/{state.dataloader_label}/max": sampled_t.max().item(),
-                f"sampled_t/{state.dataloader_label}/min": sampled_t.min().item(),
-            },
-        )
-
-
 class WarmupWithFrozenEncoder(Callback):
     def __init__(
         self,

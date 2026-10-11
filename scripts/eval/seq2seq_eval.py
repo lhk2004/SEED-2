@@ -12,7 +12,7 @@ import torch.distributed as dist
 from omegaconf import DictConfig
 from torch.utils.data import DataLoader, DistributedSampler
 from tqdm.auto import tqdm
-from transformers import AutoModelForCausalLM, AutoModelForMaskedLM
+from transformers import AutoModelForCausalLM
 from transformers.generation import StopStringCriteria
 
 from scripts.utils import (
@@ -105,20 +105,12 @@ def main(cfg: DictConfig) -> None:
             **getattr(cfg, "model_config_overrides", {}),
         )
     except FileNotFoundError:
-        try:
-            model = AutoModelForCausalLM.from_pretrained(
-                cfg.pretrained_model_name_or_path,
-                trust_remote_code=True,
-                revision=getattr(cfg, "pretrained_model_revision", None),
-                **getattr(cfg, "model_config_overrides", {}),
-            )
-        except:  # Model not compatible with CausalLM
-            model = AutoModelForMaskedLM.from_pretrained(
-                cfg.pretrained_model_name_or_path,
-                trust_remote_code=True,
-                revision=getattr(cfg, "pretrained_model_revision", None),
-                **getattr(cfg, "model_config_overrides", {}),
-            )
+        model = AutoModelForCausalLM.from_pretrained(
+            cfg.pretrained_model_name_or_path,
+            trust_remote_code=True,
+            revision=getattr(cfg, "pretrained_model_revision", None),
+            **getattr(cfg, "model_config_overrides", {}),
+        )
     model = model.to(device)
     if local_rank == 0:
         print(f"Num. params: {format_number(count_parameters(model, trainable=False))}")
@@ -186,10 +178,7 @@ def main(cfg: DictConfig) -> None:
             input_ids = torch.cat((input_ids, prompt_ids), dim=-1)
         # Generate samples
         with torch.no_grad():
-            if "SEED" in type(model).__name__ or (
-                "LayerSkip" in type(model).__name__
-                and gen_kwargs.get("assistant_early_exit") is not None
-            ):
+            if "SEED" in type(model).__name__:
                 outputs, (generated_tokens, accepted_tokens), (accepted_lengths, accept_counts), _ = model.generate(
                     inputs=input_ids,
                     disable_pbar=(local_rank != 0),
@@ -228,7 +217,7 @@ def main(cfg: DictConfig) -> None:
         if strip_thinking:
             outputs = strip_thinking_text(outputs)
         decoded_samples = outputs.strip()
-        if "SEED" in type(model).__name__ or "E2D2" in type(model).__name__:
+        if "SEED" in type(model).__name__:
             decoded_samples = decoded_samples.removeprefix("Summary: ")
         if local_rank == 0:
             print("Input:", tokenizer.decode(input_ids[0]))

@@ -561,12 +561,8 @@ def main(cfg: DictConfig) -> None:
         start_event.record()
 
         is_seed = "SEED" in type(model).__name__
-        is_layerskip_speculative = (
-            "LayerSkip" in type(model).__name__
-            and gen_kwargs.get("assistant_early_exit") is not None
-        )
 
-        if is_seed or is_layerskip_speculative:
+        if is_seed:
             sample, (generated_tokens, accepted_tokens), (
                 accepted_lengths,
                 accept_counts,
@@ -587,7 +583,7 @@ def main(cfg: DictConfig) -> None:
         elapsed_time_s = start_event.elapsed_time(end_event) / 1000
         num_new_tokens = sample.numel() - prefix_tokens.numel()
 
-        if not (is_seed or is_layerskip_speculative):
+        if not is_seed:
             generated_tokens = max(int(num_new_tokens), 1)
             accepted_tokens = generated_tokens
             accepted_lengths = [1]

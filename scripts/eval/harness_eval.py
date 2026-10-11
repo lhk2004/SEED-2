@@ -17,11 +17,7 @@ from lm_eval.loggers.evaluation_tracker import EvaluationTracker
 from lm_eval.utils import make_table
 from omegaconf import DictConfig, OmegaConf
 from tqdm import tqdm
-from transformers import (
-    AutoModelForCausalLM,
-    AutoModelForMaskedLM,
-    PreTrainedTokenizer,
-)
+from transformers import AutoModelForCausalLM, PreTrainedTokenizer
 
 from datasets import Dataset
 from scripts.eval import math500_metrics
@@ -96,9 +92,6 @@ class LMEvalHarnessModel(LM):
         """
         if "fsdp" in pretrained_model_name_or_path:
             load_ema_weights = False
-        # SEED and AR trained on GSM8K still used ema
-        # if ("seed" in pretrained_model_name_or_path and "e2d2" not in pretrained_model_name_or_path) and "gsm8k" in pretrained_model_name_or_path and "fsdp" in pretrained_model_name_or_path:
-        #     load_ema_weights = True
         super().__init__()
         self.generated_samples_output_path = generated_samples_output_path
         if not fsspec_exists(self.generated_samples_output_path):
@@ -142,20 +135,12 @@ class LMEvalHarnessModel(LM):
                 **model_config_overrides,
             )
         else:
-            try:
-                model = AutoModelForCausalLM.from_pretrained(
-                    pretrained_model_name_or_path,
-                    trust_remote_code=True,
-                    revision=pretrained_model_revision,
-                    **model_config_overrides,
-                )
-            except:  # Model not compatible with CausalLM
-                model = AutoModelForMaskedLM.from_pretrained(
-                    pretrained_model_name_or_path,
-                    trust_remote_code=True,
-                    revision=pretrained_model_revision,
-                    **model_config_overrides,
-                )
+            model = AutoModelForCausalLM.from_pretrained(
+                pretrained_model_name_or_path,
+                trust_remote_code=True,
+                revision=pretrained_model_revision,
+                **model_config_overrides,
+            )
         if require_frozen_target and not getattr(
             getattr(model, "backbone", None), "frozen_target", False
         ):

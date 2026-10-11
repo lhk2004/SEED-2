@@ -1,7 +1,4 @@
 #!/bin/bash
-# Evaluate the untuned Qwen3-1.7B release on all 500 MATH-500 test problems.
-# From any directory:
-#   bash /path/to/seed/bash_scripts/evaluate_math500.sh
 set -eo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,9 +18,6 @@ MODEL_NAME=${MODEL_PATH##*/}
 OUTPUT_PATH=${OUTPUT_PATH:-"${PWD}/outputs/${MODEL_NAME}/math500_output/untuned_L${MAX_NEW_TOKENS}_sample${DO_SAMPLE}"}
 mkdir -p "${OUTPUT_PATH}"
 
-# Share the LoRA task, non-thinking chat prompt, boxed-answer scorer, and reports.
-# Standard HF generation handles EOS and max_new_tokens itself. The SEED length
-# stopper sees only generated tokens; HF stopping criteria see the prompt too.
 accelerate launch scripts/eval/harness_eval.py \
   hydra.output_subdir=null \
   hydra.run.dir="${PWD}" \

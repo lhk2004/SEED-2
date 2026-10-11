@@ -29,24 +29,6 @@ class ARConfig(DenoiserConfig):
         "AutoModelForCausalLM": "ar.AR",
     }
 
-    def __init__(
-        self,
-        length: Optional[int] = None,
-        backbone_config: Optional[Dict[str, Any]] = None,
-        tokenization_config: Optional[Dict[str, Any]] = None,
-        noise_config: None = None,
-        time_conditioned_backbone: Optional[bool] = None,
-        **kwargs,
-    ):
-        super().__init__(
-            length=length,
-            backbone_config=backbone_config,
-            noise_config=noise_config,
-            tokenization_config=tokenization_config,
-            time_conditioned_backbone=time_conditioned_backbone,
-            **kwargs,
-        )
-
 
 class AR(Denoiser):
     """Denoiser class for autoregressive (AR) models."""
