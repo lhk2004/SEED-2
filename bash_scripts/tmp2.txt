@@ -1,0 +1,372 @@
+Logging into W&B as 'hankun2004-purdue-university'.
+[33m⚠️  Warning: 'huggingface-cli login' is deprecated. Use 'hf auth login' instead.[0m
+HuggingFace cache set to '/home/hankun/e2d/.hf_cache'.
+[data] Reusing Tulu3 cache: /data/shared_data/hankun/datasets/tulu3_qwen3_4b_selfdistill_maxlen4096
+[verify] Skipping self-distillation verification (VERIFY=false).
+Initializing dist
+CONFIG
+├── composer
+│   └── trainer:                                                                                                  
+│         _target_: composer.Trainer                                                                              
+│         run_name: tulu3_4096_seed_lora_block8_4b_dec2_rank512_lr2e-4_bsz32_20261011_120131                      
+│         seed: 1                                                                                                 
+│         device: gpu                                                                                             
+│         train_subset_num_batches: -1                                                                            
+│         eval_subset_num_batches: -1                                                                             
+│         max_duration: 3ep                                                                                       
+│         eval_interval: 1000ba                                                                                   
+│         progress_bar: false                                                                                     
+│         log_to_console: true                                                                                    
+│         console_log_interval: 10ba                                                                              
+│         precision: amp_bf16                                                                                     
+│         device_train_microbatch_size: 1                                                                         
+│         save_folder: /home/hankun/e2d/outputs/tulu3_4096_seed_lora_block8_4b_dec2_rank512_lr2e-4_bsz32_20261011_
+│         save_filename: ep{epoch}-ba{batch}-rank{rank}.pt                                                        
+│         save_latest_filename: latest-rank{rank}.pt                                                              
+│         save_interval: 1000ba                                                                                   
+│         save_num_checkpoints_to_keep: 1                                                                         
+│         save_overwrite: false                                                                                   
+│         save_metrics: false                                                                                     
+│         load_path: null                                                                                         
+│         load_weights_only: false                                                                                
+│         autoresume: true                                                                                        
+│         python_log_level: null                                                                                  
+│         dist_timeout: 600.0                                                                                     
+│       algorithms:                                                                                               
+│         gradient_clipping:                                                                                      
+│           _target_: composer.algorithms.GradientClipping                                                        
+│           clipping_type: norm                                                                                   
+│           clipping_threshold: 1.0                                                                               
+│       callbacks:                                                                                                
+│         hf_compatible_checkpointing:                                                                            
+│           _target_: src.custom_composer.callbacks.HuggingFaceCompatibleCheckpointing                            
+│           folder: /home/hankun/e2d/outputs/tulu3_4096_seed_lora_block8_4b_dec2_rank512_lr2e-4_bsz32_20261011_120
+│           filename: ep{epoch}-ba{batch}-rank{rank}.pt                                                           
+│           latest_filename: latest-rank{rank}.pt                                                                 
+│           save_interval: 1000ba                                                                                 
+│           num_checkpoints_to_keep: 1                                                                            
+│           overwrite: false                                                                                      
+│           disable_hf: true                                                                                      
+│           save_local: true                                                                                      
+│           save_to_hub: true                                                                                     
+│           hub_repo_id: kuleshov-group/tulu3_4096_seed_lora_block8_4b_dec2_rank512_lr2e-4_bsz32_20261011_120131  
+│         lr_monitor:                                                                                             
+│           _target_: composer.callbacks.LRMonitor                                                                
+│         runtime_estimator:                                                                                      
+│           _target_: composer.callbacks.RuntimeEstimator                                                         
+│         save_best_checkpointing:                                                                                
+│           _target_: src.custom_composer.callbacks.SaveBestCheckpointing                                         
+│           folder: /home/hankun/e2d/outputs/tulu3_4096_seed_lora_block8_4b_dec2_rank512_lr2e-4_bsz32_20261011_120
+│           filename: best-rank{rank}.pt                                                                          
+│           num_checkpoints_to_keep: -1                                                                           
+│           metric_to_monitor: eval/loss                                                                          
+│           mode: min                                                                                             
+│           disable_hf: true                                                                                      
+│           save_local: false                                                                                     
+│           save_to_hub: false                                                                                    
+│           hub_repo_id: null                                                                                     
+│         speed_monitor:                                                                                          
+│           _target_: composer.callbacks.SpeedMonitor                                                             
+│           gpu_flops_available: null                                                                             
+│           window_size: 500                                                                                      
+│       loggers:                                                                                                  
+│         _target_: composer.loggers.WandBLogger                                                                  
+│         project: seed                                                                                           
+│         group: null                                                                                             
+│         name: tulu3_4096_seed_lora_block8_4b_dec2_rank512_lr2e-4_bsz32_20261011_120131                          
+│         init_kwargs:                                                                                            
+│           id: tulu3_4096_seed_lora_block8_4b_dec2_rank512_lr2e-4_bsz32_20261011_120131                          
+│       lr_scheduler:                                                                                             
+│         _target_: composer.optim.scheduler.CosineAnnealingWithWarmupScheduler                                   
+│         t_warmup: 0.01dur                                                                                       
+│         t_max: 3ep                                                                                              
+│         alpha_f: 0.5                                                                                            
+│       optimizer:                                                                                                
+│         _target_: composer.optim.DecoupledAdamW                                                                 
+│         lr: 0.0002                                                                                              
+│         betas:                                                                                                  
+│         - 0.9                                                                                                   
+│         - 0.98                                                                                                  
+│         eps: 1.0e-08                                                                                            
+│         weight_decay: 1.0e-05                                                                                   
+│                                                                                                                 
+├── tokenizer
+│   └── _target_: transformers.AutoTokenizer.from_pretrained                                                      
+│       pretrained_model_name_or_path: Qwen/Qwen3-4B                                                              
+│       revision: null                                                                                            
+│       trust_remote_code: true                                                                                   
+│       padding_side: right                                                                                       
+│                                                                                                                 
+├── collator
+│   └── _target_: src.datasets.collator.DenoisingCollator                                                         
+│       global_batch_size: 32                                                                                     
+│       padding: max_length                                                                                       
+│       max_length: 4096                                                                                          
+│       pad_to_multiple_of: null                                                                                  
+│       return_tensors: pt                                                                                        
+│       predict_padding: false                                                                                    
+│       restricted_t_range: null                                                                                  
+│       sampling_eps: 0.001                                                                                       
+│       antithetic_sampling: false                                                                                
+│       block_size: 8                                                                                             
+│                                                                                                                 
+├── eval_collator
+│   └── _target_: src.datasets.collator.DenoisingCollator                                                         
+│       global_batch_size: 32                                                                                     
+│       padding: max_length                                                                                       
+│       max_length: 4096                                                                                          
+│       pad_to_multiple_of: null                                                                                  
+│       return_tensors: pt                                                                                        
+│       predict_padding: false                                                                                    
+│       restricted_t_range: null                                                                                  
+│       sampling_eps: 0.001                                                                                       
+│       antithetic_sampling: false                                                                                
+│       block_size: 8                                                                                             
+│                                                                                                                 
+├── train_dataset
+│   └── _target_: src.datasets.preprocessed_dataset.load_preprocessed_dataset                                     
+│       dataset_path: /data/shared_data/hankun/datasets/tulu3_qwen3_4b_selfdistill_maxlen4096/train_preprocessed  
+│                                                                                                                 
+├── eval_dataset
+│   └── _target_: src.datasets.preprocessed_dataset.load_preprocessed_dataset                                     
+│       dataset_path: /data/shared_data/hankun/datasets/tulu3_qwen3_4b_selfdistill_maxlen4096/eval_preprocessed   
+│                                                                                                                 
+├── metrics
+│   └── loss:                                                                                                     
+│         _target_: src.tasks.metrics.Loss                                                                        
+│       nll:                                                                                                      
+│         _target_: src.tasks.metrics.NLL                                                                         
+│       bpd:                                                                                                      
+│         _target_: src.tasks.metrics.BPD                                                                         
+│       perplexity:                                                                                               
+│         _target_: src.tasks.metrics.Perplexity                                                                  
+│                                                                                                                 
+├── eval_metrics
+│   └── loss:                                                                                                     
+│         _target_: src.tasks.metrics.Loss                                                                        
+│       nll:                                                                                                      
+│         _target_: src.tasks.metrics.NLL                                                                         
+│       bpd:                                                                                                      
+│         _target_: src.tasks.metrics.BPD                                                                         
+│       perplexity:                                                                                               
+│         _target_: src.tasks.metrics.Perplexity                                                                  
+│                                                                                                                 
+├── model
+│   └── _target_: src.denoiser.diffusion.SEED                                                                     
+│       config:                                                                                                   
+│         _target_: src.denoiser.diffusion.SEEDConfig                                                             
+│         _recursive_: false                                                                                      
+│         length: 4096                                                                                            
+│         time_conditioned_backbone: false                                                                        
+│         tokenization_config:                                                                                    
+│           vocab_size: 151669                                                                                    
+│           mask_token_id: 151660                                                                                 
+│           bos_token_id: 151645                                                                                  
+│           pad_token_id: 151643                                                                                  
+│           eos_token_id: 151645                                                                                  
+│           pad_vocab_size_multiple: 1                                                                            
+│         tokenizer_name: Qwen/Qwen3-4B                                                                           
+│         attn_backend: sdpa                                                                                      
+│         train_on_context: false                                                                                 
+│         keep_clean_bos: true                                                                                    
+│         T: 0                                                                                                    
+│         diffusion_type: absorbing                                                                               
+│         block_size: 8                                                                                           
+│         eval_block_size: 8                                                                                      
+│         decoder_loss_lambda: 1.0                                                                                
+│         noise_config:                                                                                           
+│           _target_: src.noise_schedule.noise_schedules.LinearNoise                                              
+│         backbone_config:                                                                                        
+│           _target_: src.backbone.seed_lora.LLMasEncoderDecoderFrozenTargetLoRA                                  
+│           pretrained_model_name_or_path: Qwen/Qwen3-4B                                                          
+│           max_length: 4096                                                                                      
+│           attn_backend: sdpa                                                                                    
+│           num_decoder_layers: 2                                                                                 
+│           lora_rank: 512                                                                                        
+│           lora_alpha: 1024                                                                                      
+│           lora_dropout: 0.0                                                                                     
+│           torch_dtype: bfloat16                                                                                 
+│                                                                                                                 
+├── run_name
+│   └── tulu3_4096_seed_lora_block8_4b_dec2_rank512_lr2e-4_bsz32_20261011_120131                                  
+├── seed
+│   └── 1                                                                                                         
+├── backend
+│   └── gpu                                                                                                       
+├── pretrained_model_name_or_path
+│   └── Qwen/Qwen3-4B                                                                                             
+├── block_size
+│   └── 8                                                                                                         
+├── eval_block_size
+│   └── 8                                                                                                         
+├── train_dataloader
+│   └── _target_: torch.utils.data.DataLoader                                                                     
+│       batch_size: 32                                                                                            
+│       num_workers: 0                                                                                            
+│       pin_memory: true                                                                                          
+│                                                                                                                 
+├── eval_dataloader
+│   └── _target_: torch.utils.data.DataLoader                                                                     
+│       batch_size: 1                                                                                             
+│       num_workers: 0                                                                                            
+│       pin_memory: true                                                                                          
+│                                                                                                                 
+├── training
+│   └── autoresume: true                                                                                          
+│       load_path: null                                                                                           
+│       ema: 0.9999                                                                                               
+│       lr: 0.0003                                                                                                
+│       global_batch_size: 32                                                                                     
+│       grad_accum: 32                                                                                            
+│       antithetic_sampling: false                                                                                
+│       sampling_eps: 0.001                                                                                       
+│       restricted_t_range: null                                                                                  
+│       compile_backbone: false                                                                                   
+│                                                                                                                 
+└── checkpointing
+    └── save_dir: /home/hankun/e2d/outputs/tulu3_4096_seed_lora_block8_4b_dec2_rank512_lr2e-4_bsz32_20261011_12013
+                                                                                                                  
+[2026-10-11 12:01:43,946][composer.utils.reproducibility][INFO] - Setting seed to 1
+SEED(
+  (backbone): LLMasEncoderDecoderFrozenTargetLoRA(
+    (encoder): Qwen3ForCausalLM(
+      (model): Qwen3Model(
+        (embed_tokens): Embedding(151936, 2560)
+        (layers): ModuleList(
+          (0-35): 36 x Qwen3DecoderLayer(
+            (self_attn): Qwen3Attention(
+              (q_proj): Linear(in_features=2560, out_features=4096, bias=False)
+              (k_proj): Linear(in_features=2560, out_features=1024, bias=False)
+              (v_proj): Linear(in_features=2560, out_features=1024, bias=False)
+              (o_proj): Linear(in_features=4096, out_features=2560, bias=False)
+              (q_norm): Qwen3RMSNorm((128,), eps=1e-06)
+              (k_norm): Qwen3RMSNorm((128,), eps=1e-06)
+            )
+            (mlp): Qwen3MLP(
+              (gate_proj): Linear(in_features=2560, out_features=9728, bias=False)
+              (up_proj): Linear(in_features=2560, out_features=9728, bias=False)
+              (down_proj): Linear(in_features=9728, out_features=2560, bias=False)
+              (act_fn): SiLU()
+            )
+            (input_layernorm): Qwen3RMSNorm((2560,), eps=1e-06)
+            (post_attention_layernorm): Qwen3RMSNorm((2560,), eps=1e-06)
+          )
+        )
+        (norm): Qwen3RMSNorm((2560,), eps=1e-06)
+        (rotary_emb): Qwen3RotaryEmbedding()
+      )
+      (lm_head): Linear(in_features=2560, out_features=151936, bias=False)
+    )
+    (decoder): Module(
+      (model): Module(
+        (layers): ModuleList(
+          (0-1): 2 x Qwen3DecoderLayer(
+            (self_attn): Qwen3Attention(
+              (q_proj): LoRALinear(
+                (base): Linear(in_features=2560, out_features=4096, bias=False)
+                (dropout): Dropout(p=0.0, inplace=False)
+              )
+              (k_proj): LoRALinear(
+                (base): Linear(in_features=2560, out_features=1024, bias=False)
+                (dropout): Dropout(p=0.0, inplace=False)
+              )
+              (v_proj): LoRALinear(
+                (base): Linear(in_features=2560, out_features=1024, bias=False)
+                (dropout): Dropout(p=0.0, inplace=False)
+              )
+              (o_proj): LoRALinear(
+                (base): Linear(in_features=4096, out_features=2560, bias=False)
+                (dropout): Dropout(p=0.0, inplace=False)
+              )
+              (q_norm): Qwen3RMSNorm((128,), eps=1e-06)
+              (k_norm): Qwen3RMSNorm((128,), eps=1e-06)
+            )
+            (mlp): Qwen3MLP(
+              (gate_proj): LoRALinear(
+                (base): Linear(in_features=2560, out_features=9728, bias=False)
+                (dropout): Dropout(p=0.0, inplace=False)
+              )
+              (up_proj): LoRALinear(
+                (base): Linear(in_features=2560, out_features=9728, bias=False)
+                (dropout): Dropout(p=0.0, inplace=False)
+              )
+              (down_proj): LoRALinear(
+                (base): Linear(in_features=9728, out_features=2560, bias=False)
+                (dropout): Dropout(p=0.0, inplace=False)
+              )
+              (act_fn): SiLU()
+            )
+            (input_layernorm): Qwen3RMSNorm((2560,), eps=1e-06)
+            (post_attention_layernorm): Qwen3RMSNorm((2560,), eps=1e-06)
+          )
+        )
+        (norm): Qwen3RMSNorm((2560,), eps=1e-06)
+        (rotary_emb): Qwen3RotaryEmbedding()
+      )
+      (lm_head): LoRALinear(
+        (base): Linear(in_features=2560, out_features=151936, bias=False)
+        (dropout): Dropout(p=0.0, inplace=False)
+      )
+    )
+  )
+)
+[2026-10-11 12:01:46,819][__main__][INFO] - Num. parameters: 4.2B
+[2026-10-11 12:01:46,820][__main__][INFO] - Num. trainable parameters: 137.8M
+[2026-10-11 12:01:46,820][__main__][INFO] - All nodes connected
+[2026-10-11 12:01:48,601][composer.utils.reproducibility][INFO] - Setting seed to 1
+[2026-10-11 12:01:51,954][composer.trainer.trainer][INFO] - Run name: tulu3_4096_seed_lora_block8_4b_dec2_rank512_lr2e-4_bsz32_20261011_120131
+[2026-10-11 12:01:51,955][composer.trainer.trainer][INFO] - Multiple CheckpointSaver provided as callbacks. Using the first one as reference.
+[2026-10-11 12:01:54,860][composer.trainer.trainer][INFO] - Stepping schedulers every batch. To step schedulers every epoch, set `step_schedulers_every_batch=False`.
+[2026-10-11 12:01:54,861][composer.trainer.trainer][INFO] - Searching for a previous checkpoint to autoresume
+[2026-10-11 12:01:54,862][composer.trainer.trainer][INFO] - Looking for autoresume checkpoint: tulu3_4096_seed_lora_block8_4b_dec2_rank512_lr2e-4_bsz32_20261011_120131/checkpoints/latest-rank0.pt (remote), /home/hankun/e2d/outputs/tulu3_4096_seed_lora_block8_4b_dec2_rank512_lr2e-4_bsz32_20261011_120131/checkpoints/latest-rank0.pt (local)
+[2026-10-11 12:01:56,412][composer.trainer.trainer][INFO] - Checkpoint not found in: <composer.loggers.wandb_logger.WandBLogger object at 0x7fd6a44fa540>
+[2026-10-11 12:01:56,414][composer.trainer.trainer][INFO] - Checkpoint not found in: <composer.loggers.console_logger.ConsoleLogger object at 0x7fd68cd39df0>
+[2026-10-11 12:01:56,432][composer.trainer.trainer][INFO] - No previous autoresume checkpoint found
+[2026-10-11 12:01:56,434][composer.trainer.trainer][INFO] - Setting seed to 1
+[2026-10-11 12:01:56,435][composer.utils.reproducibility][INFO] - Setting seed to 1
+[2026-10-11 12:01:56,437][composer.trainer.trainer][INFO] - Using precision Precision.AMP_BF16
+[2026-10-11 12:02:58,426][composer.core.engine][ERROR] - Error running HuggingFaceCompatibleCheckpointing.close(). Skipping HuggingFaceCompatibleCheckpointing.post_close().
+Traceback (most recent call last):
+  File "/home/hankun/anaconda3/envs/e2d-env/lib/python3.12/site-packages/composer/core/engine.py", line 554, in _close
+    callback.close(state, logger)
+  File "/home/hankun/e2d/src/custom_composer/callbacks.py", line 234, in close
+    shutil.rmtree(self.project_root)
+  File "/home/hankun/anaconda3/envs/e2d-env/lib/python3.12/shutil.py", line 759, in rmtree
+    _rmtree_safe_fd(stack, onexc)
+  File "/home/hankun/anaconda3/envs/e2d-env/lib/python3.12/shutil.py", line 703, in _rmtree_safe_fd
+    onexc(func, path, err)
+  File "/home/hankun/anaconda3/envs/e2d-env/lib/python3.12/shutil.py", line 669, in _rmtree_safe_fd
+    orig_st = os.lstat(name, dir_fd=dirfd)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: ''
+Stack (most recent call last):
+  File "/home/hankun/anaconda3/envs/e2d-env/lib/python3.12/site-packages/composer/core/engine.py", line 509, in __del__
+    self.close()
+  File "/home/hankun/anaconda3/envs/e2d-env/lib/python3.12/site-packages/composer/core/engine.py", line 539, in close
+    self._close(self.state, self.logger)
+  File "/home/hankun/anaconda3/envs/e2d-env/lib/python3.12/site-packages/composer/core/engine.py", line 556, in _close
+    log.error(
+[2026-10-11 12:02:58,428][composer.core.engine][ERROR] - Error running SaveBestCheckpointing.close(). Skipping SaveBestCheckpointing.post_close().
+Traceback (most recent call last):
+  File "/home/hankun/anaconda3/envs/e2d-env/lib/python3.12/site-packages/composer/core/engine.py", line 554, in _close
+    callback.close(state, logger)
+  File "/home/hankun/e2d/src/custom_composer/callbacks.py", line 234, in close
+    shutil.rmtree(self.project_root)
+  File "/home/hankun/anaconda3/envs/e2d-env/lib/python3.12/shutil.py", line 759, in rmtree
+    _rmtree_safe_fd(stack, onexc)
+  File "/home/hankun/anaconda3/envs/e2d-env/lib/python3.12/shutil.py", line 703, in _rmtree_safe_fd
+    onexc(func, path, err)
+  File "/home/hankun/anaconda3/envs/e2d-env/lib/python3.12/shutil.py", line 669, in _rmtree_safe_fd
+    orig_st = os.lstat(name, dir_fd=dirfd)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: ''
+Stack (most recent call last):
+  File "/home/hankun/anaconda3/envs/e2d-env/lib/python3.12/site-packages/composer/core/engine.py", line 509, in __del__
+    self.close()
+  File "/home/hankun/anaconda3/envs/e2d-env/lib/python3.12/site-packages/composer/core/engine.py", line 539, in close
+    self._close(self.state, self.logger)
+  File "/home/hankun/anaconda3/envs/e2d-env/lib/python3.12/site-packages/composer/core/engine.py", line 556, in _close
+    log.error(
+Killing training processes
+Waiting up to 30 seconds for all training processes to terminate. Press Ctrl-C to exit immediately.
+Global rank 0 (PID 2836381) exited with code 143
