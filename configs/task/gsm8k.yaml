@@ -1,0 +1,5 @@
+defaults:
+  - base@_here_
+  - _self_
+
+tasks: gsm8k  # lm-eval's built-in task

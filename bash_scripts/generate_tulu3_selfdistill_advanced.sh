@@ -23,7 +23,7 @@ DISTILL_FILE_STEM=${DISTILL_FILE_STEM:-tulu3_qwen3_1p7b_thinking}
 DISTILL_DATA_ROOT=${DISTILL_DATA_ROOT:-/data/shared_data/hankun/datasets/tulu3_qwen3_1p7b_selfdistill_advanced_bsz${PER_DEVICE_BATCH_SIZE}_maxlen${MAX_SEQ_LEN}}
 read -r -a SOURCE_SPLITS <<< "${DISTILL_SOURCE_SPLITS:-train}"
 
-exec "${PYTHON:-python}" scripts/generate_tulu3_selfdistill.py \
+exec "${PYTHON:-python}" scripts/data/generate_tulu3_selfdistill.py \
   --model-name-or-path "${MODEL_NAME_OR_PATH}" \
   --data-root "${DISTILL_DATA_ROOT}" \
   --jsonl-stem "${DISTILL_FILE_STEM}" \

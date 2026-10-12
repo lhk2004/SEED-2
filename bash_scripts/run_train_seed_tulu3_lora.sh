@@ -1,7 +1,4 @@
 #!/bin/bash
-# Frozen verifier + SEED drafting LoRA on the available Tulu3 self-distillation.
-# Preprocesses existing responses on CPU. Defaults to length 4096 for the
-# existing dataset and Qwen3-4B for training. Override via environment.
 set -eo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,7 +13,7 @@ DISTILL_DATA_ROOT=${DISTILL_DATA_ROOT:-/data/shared_data/hankun/datasets/tulu3_q
 DISTILL_FILE_STEM=${DISTILL_FILE_STEM:-tulu3_qwen3_4b}
 DISTILL_RAW_FILE=${DISTILL_RAW_FILE:-${DISTILL_DATA_ROOT}/${DISTILL_FILE_STEM}.jsonl}
 DISTILL_TOKENIZER_NAME_OR_PATH=${DISTILL_TOKENIZER_NAME_OR_PATH:-Qwen/Qwen3-4B}
-OUTPUT_ROOT=${OUTPUT_ROOT:-outputs}
+OUTPUT_ROOT=${OUTPUT_ROOT:-/data/shared_data/hankun/outputs}
 BLOCK_SIZE=${BLOCK_SIZE:-8}
 N_DECODER_LAYERS=${N_DECODER_LAYERS:-2}
 LORA_RANK=${LORA_RANK:-512}
@@ -53,7 +50,7 @@ if [[ ! -d "${DISTILL_DATA_ROOT}/train_preprocessed" || ! -d "${DISTILL_DATA_ROO
     exit 1
   fi
   echo "[data] Preprocessing available Tulu3 responses in ${DISTILL_DATA_ROOT}."
-  "${PYTHON}" scripts/preprocess_distilled_jsonl.py \
+  "${PYTHON}" scripts/data/preprocess_distilled_jsonl.py \
     --input-jsonl "${DISTILL_RAW_FILE}" \
     --data-root "${DISTILL_DATA_ROOT}" \
     --tokenizer-name-or-path "${DISTILL_TOKENIZER_NAME_OR_PATH}" \
@@ -93,43 +90,31 @@ mkdir -p "${RUN_DIR}"
 
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-# Only low-rank parameters are trainable. Disable EMA because the existing EMA
-# algorithm also averages target buffers; checkpoint and eval use raw weights.
-composer -n "${NUM_VISIBLE_DEVICES}" scripts/composer_scripts/train_discrete_denoiser.py \
+# Only the drafter's LoRA parameters are trainable; the target model is frozen.
+composer -n "${NUM_VISIBLE_DEVICES}" scripts/train.py \
   run_name="${RUN_NAME}" \
   pretrained_model_name_or_path="${MODEL_NAME_OR_PATH}" \
-  dataset@train_dataset=tulu3_distill_train \
-  dataset@eval_dataset=tulu3_distill_eval \
   train_dataset.dataset_path="${DISTILL_DATA_ROOT}/train_preprocessed" \
   eval_dataset.dataset_path="${DISTILL_DATA_ROOT}/eval_preprocessed" \
+  max_seq_length="${MAX_SEQ_LEN}" \
   model=seed \
-  model/backbone@model.config.backbone_config=llm_as_encoder_decoder_seed_lora \
-  model.config.length="${MAX_SEQ_LEN}" \
-  model.config.attn_backend=sdpa \
-  model.config.train_on_context=false \
-  model.config.backbone_config.num_decoder_layers="${N_DECODER_LAYERS}" \
-  model.config.backbone_config.lora_rank="${LORA_RANK}" \
-  model.config.backbone_config.lora_alpha="${LORA_ALPHA}" \
-  model.config.backbone_config.lora_dropout="${LORA_DROPOUT}" \
-  training.compile_backbone=false \
+  model.block_size="${BLOCK_SIZE}" \
+  model.num_draft_layers="${N_DECODER_LAYERS}" \
+  model.lora_rank="${LORA_RANK}" \
+  model.lora_alpha="${LORA_ALPHA}" \
+  model.lora_dropout="${LORA_DROPOUT}" \
+  model.train_on_context=false \
   training.global_batch_size="${BATCH_SIZE}" \
   training.grad_accum="$(( BATCH_SIZE / NUM_VISIBLE_DEVICES / MICRO_BATCH_SIZE ))" \
-  training.antithetic_sampling=false \
-  block_size="${BLOCK_SIZE}" \
-  eval_block_size="${BLOCK_SIZE}" \
-  'composer/algorithms=[gradient_clipping]' \
   composer.optimizer.lr="${LR}" \
   composer.trainer.precision=amp_bf16 \
   composer.trainer.max_duration="${MAX_DURATION}" \
   composer.trainer.eval_interval="${EVAL_INTERVAL}" \
   composer.trainer.save_interval="${SAVE_INTERVAL}" \
   composer.trainer.save_num_checkpoints_to_keep=1 \
-  composer/lr_scheduler=cosine_annealing_with_warmup \
   composer.lr_scheduler.t_warmup="${WARMUP_DURATION}" \
   composer.lr_scheduler.alpha_f="${ALPHA_F}" \
   composer.loggers.name="${RUN_NAME}" \
-  composer.callbacks.hf_compatible_checkpointing.disable_hf=true \
-  composer.callbacks.save_best_checkpointing.save_local=false \
   train_dataloader.num_workers="${NUM_WORKERS}" \
   eval_dataloader.batch_size=1 \
   hydra.run.dir="${RUN_DIR}" \

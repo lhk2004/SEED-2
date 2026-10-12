@@ -1,0 +1,124 @@
+# Training config (scripts/train.py). See bash_scripts/run_train_seed_tulu3_lora.sh.
+defaults:
+  - model: seed
+  - _self_
+
+run_name: ???
+seed: 1
+pretrained_model_name_or_path: ???
+max_seq_length: ???  # examples are padded to this length
+
+tokenizer:
+  _target_: transformers.AutoTokenizer.from_pretrained
+  pretrained_model_name_or_path: ${pretrained_model_name_or_path}
+  revision: null
+  trust_remote_code: true
+  padding_side: right
+
+# Tokenized datasets (see scripts/data/preprocess_distilled_jsonl.py)
+train_dataset:
+  _target_: src.data.load_preprocessed_dataset
+  dataset_path: ???
+eval_dataset:
+  _target_: src.data.load_preprocessed_dataset
+  dataset_path: ???
+
+collator:
+  _target_: src.data.PaddingCollator
+  max_length: ${max_seq_length}
+
+training:
+  global_batch_size: 512
+  grad_accum: 1
+
+train_dataloader:
+  _target_: torch.utils.data.DataLoader
+  batch_size: ${div_up:${training.global_batch_size}, ${world_size:}}  # per device
+  num_workers: 0
+  pin_memory: true
+eval_dataloader:
+  _target_: torch.utils.data.DataLoader
+  batch_size: ${composer.trainer.device_train_microbatch_size}  # per device
+  num_workers: ${train_dataloader.num_workers}
+  pin_memory: true
+
+composer:
+  trainer:
+    _target_: composer.Trainer
+    run_name: ${run_name}
+    seed: ${seed}
+    device: ${device:}
+    train_subset_num_batches: -1
+    eval_subset_num_batches: -1
+    max_duration: 1000000ba
+    eval_interval: 10000ba
+    progress_bar: false
+    log_to_console: true
+    console_log_interval: 10ba
+    precision: amp_bf16
+    device_train_microbatch_size: ${div_up:${train_dataloader.batch_size}, ${training.grad_accum}}
+    save_folder: ${cwd:}/checkpoints  # the run directory (hydra.job.chdir=true)
+    save_filename: ep{epoch}-ba{batch}-rank{rank}.pt
+    save_latest_filename: latest-rank{rank}.pt
+    save_interval: 100000ba
+    save_num_checkpoints_to_keep: -1
+    save_overwrite: false
+    save_metrics: false
+    load_path: null  # checkpoint to start from
+    load_weights_only: false
+    autoresume: true
+    python_log_level: null
+    dist_timeout: 600.0
+  optimizer:
+    _target_: composer.optim.DecoupledAdamW
+    lr: 3e-4
+    betas: [0.9, 0.98]
+    eps: 1e-8
+    weight_decay: 1e-5
+  lr_scheduler:
+    _target_: composer.optim.scheduler.CosineAnnealingWithWarmupScheduler
+    t_warmup: 0.01dur
+    t_max: ${composer.trainer.max_duration}
+    alpha_f: 0.0
+  algorithms:
+    gradient_clipping:
+      _target_: composer.algorithms.GradientClipping
+      clipping_type: norm
+      clipping_threshold: 1.0
+  callbacks:
+    checkpoint_saver:
+      _target_: composer.callbacks.CheckpointSaver
+      folder: ${composer.trainer.save_folder}
+      filename: ${composer.trainer.save_filename}
+      latest_filename: ${composer.trainer.save_latest_filename}
+      save_interval: ${composer.trainer.save_interval}
+      num_checkpoints_to_keep: ${composer.trainer.save_num_checkpoints_to_keep}
+      overwrite: ${composer.trainer.save_overwrite}
+    lr_monitor:
+      _target_: composer.callbacks.LRMonitor
+    runtime_estimator:
+      _target_: composer.callbacks.RuntimeEstimator
+    save_best_checkpointing:
+      _target_: src.training.SaveBestCheckpointing
+      folder: ${composer.trainer.save_folder}
+      filename: best-rank{rank}.pt
+      num_checkpoints_to_keep: -1
+      metric_to_monitor: eval/loss
+      mode: min
+    speed_monitor:
+      _target_: composer.callbacks.SpeedMonitor
+      gpu_flops_available: null
+      window_size: 500
+  loggers:
+    _target_: composer.loggers.WandBLogger
+    project: seed
+    group: null
+    name: ${run_name}
+    init_kwargs:
+      id: ${run_name}
+
+hydra:
+  run:
+    dir: ./outputs/${run_name}
+  job:
+    chdir: true

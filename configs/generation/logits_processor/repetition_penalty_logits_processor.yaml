@@ -1,4 +1,0 @@
-#file: noinspection LongLine
-repetition_penalty_logits_processor:
-  _target_: transformers.generation.RepetitionPenaltyLogitsProcessor
-  penalty: 1.1

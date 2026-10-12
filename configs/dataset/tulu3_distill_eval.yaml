@@ -1,5 +1,0 @@
-defaults:
-  - tulu3_distill_train
-
-# Overridden by run_train_seed_tulu3_lora.sh
-dataset_path: "${oc.env:DATA_DIR}/tulu3_distill/eval_preprocessed"

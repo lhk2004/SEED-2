@@ -1,2 +1,0 @@
-lr_monitor:
-  _target_: composer.callbacks.LRMonitor

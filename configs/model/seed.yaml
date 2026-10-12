@@ -1,10 +1,10 @@
-defaults:
-  - base@_here_
-  - _self_
-
-_target_: src.denoiser.diffusion.SEED
-config:
-  _target_: src.denoiser.diffusion.SEEDConfig
-  block_size: ${block_size}
-  eval_block_size: ${block_size}
-  decoder_loss_lambda: 1.0
+_target_: src.models.seed.SEED
+pretrained_model_name_or_path: ${pretrained_model_name_or_path}  # target (verifier)
+max_seq_length: ${max_seq_length}
+block_size: 8
+num_draft_layers: 2
+lora_rank: 32
+lora_alpha: 64.0
+lora_dropout: 0.0
+torch_dtype: bfloat16
+train_on_context: false

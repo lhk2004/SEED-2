@@ -1,7 +1,8 @@
-defaults:
-  - base@_here_
-  - _self_
-
-_target_: src.denoiser.ar.AR
-config:
-  _target_: src.denoiser.ar.ARConfig
+_target_: src.models.ar.AR
+pretrained_model_name_or_path: ${pretrained_model_name_or_path}
+num_layers: -1
+keep_top_layers: false
+from_scratch: false
+attn_implementation: sdpa
+torch_dtype: null
+train_on_context: false

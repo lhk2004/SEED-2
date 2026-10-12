@@ -1,2 +1,0 @@
-bpd:
-  _target_: src.tasks.metrics.BPD

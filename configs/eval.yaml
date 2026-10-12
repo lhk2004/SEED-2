@@ -1,0 +1,42 @@
+# Evaluation config (scripts/eval.py). See bash_scripts/evaluate_*.sh.
+defaults:
+  - task: ???  # gsm8k | math500 | humaneval | mbpp
+  - override hydra/job_logging: disabled
+  - override hydra/hydra_logging: disabled
+  - _self_
+
+hydra:
+  output_subdir: null  # no .hydra/ directory
+  run:
+    dir: .
+
+seed: 1234
+model_path: ???  # training run directory, or a Hugging Face model id/path
+ckpt_file: best-rank0.pt  # checkpoint within <model_path>/checkpoints
+torch_dtype: null  # Hugging Face models only; runs store their own dtype
+throughput_warmup: 100  # samples excluded from the mean throughput
+
+tokenizer:
+  _target_: transformers.AutoTokenizer.from_pretrained
+  pretrained_model_name_or_path: ${model_path}
+  revision: null
+  trust_remote_code: true
+  padding_side: right
+eos_token_id: ${tokenizer_eos_token_id:${tokenizer}}
+chat_template_kwargs:
+  enable_thinking: false
+
+max_new_tokens: ???
+generation_config:
+  _target_: transformers.GenerationConfig
+  do_sample: false
+  temperature: 1.0
+  use_cache: true
+
+# SEED only (stops on generated tokens): any of eos, max_new_tokens, boxed_answer
+stopping_criteria: []
+# SEED only: options of SEED.generate
+seed_decoding:
+  block_size: null  # draft length when conf_seg is off
+  conf_seg: true
+  tree_attn: true

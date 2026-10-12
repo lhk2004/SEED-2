@@ -1,2 +1,0 @@
-_target_: transformers.DefaultDataCollator
-return_tensors: "pt"

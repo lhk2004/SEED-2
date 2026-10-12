@@ -1,3 +1,0 @@
-defaults:
-  - scienceqa_train
-split: "test"
