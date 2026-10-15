@@ -28,7 +28,7 @@ accelerate launch scripts/eval.py \
   max_new_tokens="${MAX_NEW_TOKENS}" \
   generation_config.do_sample="${DO_SAMPLE}" \
   generation_config.temperature="${TEMPERATURE}" \
-  'stopping_criteria=[eos,max_new_tokens,boxed_answer]' \
+  'stopping_criteria=[eos,max_new_tokens]' \
   seed_decoding.block_size="${BLOCK_SIZE}" \
   seed_decoding.conf_seg="${CONF_SEG}" \
   seed_decoding.tree_attn="${TREE_ATTN}" \
