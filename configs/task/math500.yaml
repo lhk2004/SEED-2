@@ -3,6 +3,7 @@ defaults:
   - _self_
 
 # Pass a custom Task object to lm-eval; no installed task registry changes needed.
+# Generation-only: `bypass` skips answer scoring (throughput/draft stats only).
 _convert_: all
 tasks:
   - _target_: lm_eval.api.task.ConfigurableTask
@@ -15,16 +16,13 @@ tasks:
       # The adapter wraps this in the same zero-shot chat prompt as GSM8K.
       doc_to_text: "Question: {{problem}}\nAnswer:"
       doc_to_target: "{{answer}}"
-      process_results:
-        _target_: hydra.utils.get_method
-        path: src.evaluation.math500.process_results
       num_fewshot: 0
       generation_kwargs:
         until: []
         do_sample: false
       metric_list:
-        - metric: exact_match
-          aggregation: mean
+        - metric: bypass
+          aggregation: bypass
           higher_is_better: true
       metadata:
         version: 1.0

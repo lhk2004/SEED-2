@@ -4,7 +4,7 @@ tasks: ???
 num_fewshot: 0  # prompts are formatted zero-shot by the adapter
 limit: null  # number of examples (null: all)
 batch_size: 1
-log_samples: true  # kept in memory only; required by the generation-only code tasks
+log_samples: true  # kept in memory only; required by the generation-only tasks
 system_instruction: null
 apply_chat_template: false  # the adapter applies the chat template itself
 random_seed: ${seed}

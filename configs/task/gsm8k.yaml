@@ -2,4 +2,27 @@ defaults:
   - base@_here_
   - _self_
 
-tasks: gsm8k  # lm-eval's built-in task
+# Pass a custom Task object to lm-eval; no installed task registry changes needed.
+# Generation-only: `bypass` skips answer scoring (throughput/draft stats only).
+_convert_: all
+tasks:
+  - _target_: lm_eval.api.task.ConfigurableTask
+    config:
+      task: gsm8k
+      dataset_path: gsm8k
+      dataset_name: main
+      test_split: test
+      output_type: generate_until
+      # lm-eval's gsm8k prompt; the adapter wraps it in a zero-shot chat prompt.
+      doc_to_text: "Question: {{question}}\nAnswer:"
+      doc_to_target: "{{answer}}"
+      num_fewshot: 0
+      generation_kwargs:
+        until: []
+        do_sample: false
+      metric_list:
+        - metric: bypass
+          aggregation: bypass
+          higher_is_better: true
+      metadata:
+        version: 3.0

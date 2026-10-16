@@ -1,7 +1,7 @@
 """lm-eval-harness adapter for SEED and autoregressive (Hugging Face) models.
 
 Prompts are rendered zero-shot with the tokenizer's chat template. Generations,
-running accuracy, throughput, and draft acceptance statistics are printed.
+throughput, and draft acceptance statistics are printed; responses are not scored.
 """
 
 import re
@@ -20,7 +20,6 @@ from transformers import (
 )
 from transformers.generation import EosTokenCriteria, MaxLengthCriteria
 
-from src.evaluation import gsm8k, math500
 from src.models.seed import SEED
 
 MATH_INSTRUCTION = (
@@ -87,8 +86,8 @@ def _task_kind(doc: dict[str, Any]) -> str:
         or str(doc.get("task_id", "")).lower().startswith("mbpp")
     ):
         return "code"
-    if "answer" in doc:
-        return "math500" if "problem" in doc and "solution" in doc else "gsm8k"
+    if "answer" in doc:  # GSM8K, MATH-500
+        return "math"
     raise ValueError(f"Unsupported task document with fields {sorted(doc)}.")
 
 
@@ -261,11 +260,9 @@ class LMEvalAdapter(LM):
         return sequences, None
 
     def generate_until(self, requests, **kwargs) -> list[str]:
-        kind = _task_kind(requests[0].doc) if requests else "gsm8k"
-        is_math = kind in ("gsm8k", "math500")
+        kind = _task_kind(requests[0].doc) if requests else "math"
         stats = GenerationStats(self.throughput_warmup)
         responses = []
-        correct = 0
         for i, request in tqdm(
             enumerate(requests),
             desc="Generating",
@@ -273,7 +270,6 @@ class LMEvalAdapter(LM):
             disable=self.rank != 0,
         ):
             context, gen_kwargs = request.args[0], request.args[1]
-            doc = request.doc
             prompt = self._prompt(context, kind)
             prompt_ids = torch.tensor(
                 self.tokenizer(prompt, add_special_tokens=False)["input_ids"]
@@ -318,28 +314,15 @@ class LMEvalAdapter(LM):
                     print("prompt: ", prompt)
                     print("generated: ", response)
                     print("=" * 20, end="\n\n")
-            else:
-                if kind == "math500":
-                    predicted = math500.extract_boxed_answer(response)
-                    is_correct = math500.boxed_answer_accuracy(predicted, doc["answer"])
-                else:
-                    response, predicted = gsm8k.prepare_gsm8k_response(response)
-                    is_correct = gsm8k.boxed_answer_accuracy(predicted, doc["answer"])
-                correct += int(is_correct)
-                if self.rank == 0:
-                    print("=" * 20)
-                    print("Prefix:", prompt)
-                    print("Generated:", response)
-                    print("(Ground truth):", doc["answer"])
-                    print("=" * 20, end="\n\n")
+            elif self.rank == 0:
+                print("=" * 20)
+                print("Prefix:", prompt)
+                print("Generated:", response)
+                print("=" * 20, end="\n\n")
             responses.append(response)
 
             if self.rank == 0:
-                total = len(responses)
-                if is_math:
-                    print(f"\nAccuracy: {correct}/{total} = {correct / total:.2%}\n")
-                else:
-                    print(f"\nCompleted: {total}/{len(requests)}\n")
+                print(f"\nCompleted: {len(responses)}/{len(requests)}\n")
                 stats.print_running(i, throughput)
 
         print(f"RANK {self.rank} completed!")
