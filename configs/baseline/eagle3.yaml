@@ -1,0 +1,10 @@
+# EAGLE-3 baseline (src/models/baselines.py); select with `baseline=eagle3`.
+_target_: src.models.baselines.EAGLE3
+target_model_path: ${model_path}
+draft_model_path: AngelSlim/Qwen3-4B_eagle3
+# Draft tree; defaults of EAGLE's Qwen3 evaluation script (gen_ea_answer_qwen3.py)
+total_token: 32
+depth: 8
+top_k: 4
+sdpa: true  # target attention via SDPA (like AR/SEED/DFlash), not EAGLE's eager
+torch_dtype: bfloat16

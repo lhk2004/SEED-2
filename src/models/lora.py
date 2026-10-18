@@ -42,6 +42,28 @@ class LoRALinear(nn.Module):
         )
         return base_output + (update * self.scaling).to(base_output.dtype)
 
+    @torch.no_grad()
+    def merged(self) -> nn.Linear:
+        """A frozen ``nn.Linear`` with new weights ``W + scaling * B A`` (summed in
+        float32, stored in the base dtype); the shared base layer is untouched.
+        Matches ``forward`` in eval mode, where dropout is the identity."""
+        weight = self.base.weight
+        merged = nn.Linear(
+            self.base.in_features,
+            self.base.out_features,
+            bias=self.base.bias is not None,
+            device="meta",
+        )
+        merged.weight = nn.Parameter(
+            (weight.float() + self.scaling * (self.lora_B @ self.lora_A)).to(
+                weight.dtype
+            ),
+            requires_grad=False,
+        )
+        if self.base.bias is not None:
+            merged.bias = nn.Parameter(self.base.bias.clone(), requires_grad=False)
+        return merged
+
 
 def add_lora_adapters(
     module: nn.Module, rank: int, alpha: float, dropout: float
@@ -52,3 +74,12 @@ def add_lora_adapters(
             setattr(module, name, LoRALinear(child, rank, alpha, dropout))
         else:
             add_lora_adapters(child, rank, alpha, dropout)
+
+
+def merge_lora_adapters(module: nn.Module) -> None:
+    """Replace every ``LoRALinear`` inside ``module`` with its merged ``nn.Linear``."""
+    for name, child in list(module.named_children()):
+        if isinstance(child, LoRALinear):
+            setattr(module, name, child.merged())
+        else:
+            merge_lora_adapters(child)

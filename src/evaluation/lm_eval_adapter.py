@@ -1,4 +1,5 @@
-"""lm-eval-harness adapter for SEED and autoregressive (Hugging Face) models.
+"""lm-eval-harness adapter for SEED, EAGLE-3/DFlash baselines, and autoregressive
+(Hugging Face) models.
 
 Prompts are rendered zero-shot with the tokenizer's chat template. Generations,
 throughput, and draft acceptance statistics are printed; responses are not scored.
@@ -20,6 +21,7 @@ from transformers import (
 )
 from transformers.generation import EosTokenCriteria, MaxLengthCriteria
 
+from src.models.baselines import EAGLE3, DFlash
 from src.models.seed import SEED
 
 MATH_INSTRUCTION = (
@@ -189,10 +191,12 @@ class LMEvalAdapter(LM):
     ):
         """
         Args:
-            model: A `SEED` model, or any model with Hugging Face `generate`.
+            model: A `SEED`, `EAGLE3`, or `DFlash` model, or any model with
+                Hugging Face `generate`.
             generation_config: Sampling settings (`do_sample`, `temperature`, ...).
-            stopping_criteria: Used by SEED only; Hugging Face generation stops
-                via `generation_config` (EOS) and `max_new_tokens`.
+                Used as given: the model's own generation defaults never apply.
+            stopping_criteria: Used by SEED only; the baselines and Hugging Face
+                generation stop via `generation_config` (EOS) and `max_new_tokens`.
             seed_decoding: Extra `SEED.generate` options (block size, ...).
             chat_template_kwargs: Passed to `tokenizer.apply_chat_template`.
             throughput_warmup: Samples excluded from the mean throughput.
@@ -206,6 +210,7 @@ class LMEvalAdapter(LM):
         self.seed_decoding = dict(seed_decoding or {})
         self.chat_template_kwargs = dict(chat_template_kwargs or {})
         self.throughput_warmup = throughput_warmup
+        self.accelerator = accelerator  # lm-eval syncs ranks through it
         self._rank = accelerator.local_process_index if accelerator else 0
         self._world_size = accelerator.num_processes if accelerator else 1
         self.device = next(model.parameters()).device
@@ -250,10 +255,20 @@ class LMEvalAdapter(LM):
                 **self.seed_decoding,
             )
             return output.sequences, output
+        if isinstance(self.model, EAGLE3 | DFlash):
+            output = self.model.generate(
+                input_ids,
+                generation_config=self.generation_config,
+                max_new_tokens=self.max_new_tokens,
+            )
+            return output.sequences, output
         sequences = self.model.generate(
             inputs=input_ids,
             attention_mask=torch.ones_like(input_ids),
             generation_config=self.generation_config,
+            # Otherwise fields left at their defaults (e.g. do_sample=False) are
+            # replaced by the model's generation_config.json (Qwen3 samples).
+            use_model_defaults=False,
             max_length=None,
             max_new_tokens=self.max_new_tokens,
         )

@@ -22,9 +22,10 @@ from torch import nn
 from tqdm.auto import tqdm
 from transformers import AutoModelForCausalLM, GenerationConfig, StoppingCriteriaList
 from transformers.cache_utils import DynamicCache
+from transformers.generation import EosTokenCriteria, MaxLengthCriteria
 
 from src.models.common import LMOutput, loss_mask
-from src.models.lora import LoRALinear, add_lora_adapters
+from src.models.lora import LoRALinear, add_lora_adapters, merge_lora_adapters
 
 
 def additive_mask(mask: torch.Tensor, dtype: torch.dtype) -> torch.Tensor:
@@ -64,7 +65,8 @@ class Drafter(nn.Module):
     """LoRA copies of the target's top decoder layers, final norm, and LM head.
 
     The frozen base weights are shared with the target (never copied or
-    modified), even when its LM head is tied to the input embedding.
+    modified), even when its LM head is tied to the input embedding, until
+    `merge_lora` gives the drafter its own merged copy for inference.
     """
 
     def __init__(
@@ -91,6 +93,12 @@ class Drafter(nn.Module):
         for layer in self.layers:
             add_lora_adapters(layer, lora_rank, lora_alpha, lora_dropout)
         self.lm_head = LoRALinear(target.lm_head, lora_rank, lora_alpha, lora_dropout)
+
+    def merge_lora(self) -> None:
+        """Fold the adapters into separate drafter weights in the target's dtype,
+        so drafting runs plain linear layers. For inference only: the drafter
+        can no longer be trained or saved as LoRA weights."""
+        merge_lora_adapters(self)
 
     def forward(
         self,
@@ -135,7 +143,7 @@ class Drafter(nn.Module):
 
 @dataclass
 class SpeculativeOutput:
-    """Result of `SEED.generate`."""
+    """Result of `SEED.generate` (and of the EAGLE-3 / DFlash baselines)."""
 
     sequences: torch.LongTensor  # prompt followed by the generated tokens
     num_drafted: int  # draft tokens proposed
@@ -276,8 +284,8 @@ class SEED(nn.Module):
         """
         if position_ids is None:
             start = cache_length(past_key_values)
-            position_ids = torch.arange(start, start + input_ids.shape[1]).to(
-                input_ids.device
+            position_ids = torch.arange(
+                start, start + input_ids.shape[1], device=input_ids.device
             )[None, :]
         return self.target.model(
             input_ids=input_ids,
@@ -295,13 +303,18 @@ class SEED(nn.Module):
         start = cache_length(past_key_values)
         end = start + input_ids.shape[-1]
         position_ids = torch.arange(start, end, device=input_ids.device)[None, :]
-        attention_mask = additive_mask(
-            torch.ones(
-                (input_ids.shape[0], 1, input_ids.shape[1], end),
-                device=input_ids.device,
-            ),
-            self.target.dtype,
-        )
+        # The tokens attend to the whole cache and to each other. A single token
+        # needs no mask (SDPA then picks its fastest kernel); without a mask,
+        # SDPA would treat several tokens as causal.
+        attention_mask = None
+        if input_ids.shape[1] > 1:
+            attention_mask = additive_mask(
+                torch.ones(
+                    (input_ids.shape[0], 1, input_ids.shape[1], end),
+                    device=input_ids.device,
+                ),
+                self.target.dtype,
+            )
         return self.drafter(
             self.target.model.embed_tokens(input_ids),
             attention_mask=attention_mask,
@@ -335,7 +348,7 @@ class SEED(nn.Module):
         correction = torch.multinomial(correction_probs, 1).squeeze(-1)
         return lengths, correction
 
-    @torch.no_grad()
+    @torch.inference_mode()
     def generate(
         self,
         inputs: torch.LongTensor,
@@ -418,12 +431,25 @@ class SEED(nn.Module):
         def probabilities(logits):
             return (logits.float() / temperature).softmax(dim=-1)
 
-        def should_stop(end):
-            if end >= limit:
+        # EOS and max-length criteria are checked on the host from token ids the
+        # loop already fetched; any other criterion runs on the generated tokens.
+        stop_len, stop_ids = limit, set()
+        other_criteria = StoppingCriteriaList()
+        for criterion in stopping_criteria or []:
+            if isinstance(criterion, EosTokenCriteria):
+                stop_ids.update(criterion.eos_token_id.view(-1).tolist())
+            elif isinstance(criterion, MaxLengthCriteria):
+                stop_len = min(stop_len, prompt_len + criterion.max_length)
+            else:
+                other_criteria.append(criterion)
+
+        def should_stop(end, last_token):
+            """Whether to stop after `samples[:, end - 1]`, which is `last_token`."""
+            if end >= stop_len or last_token in stop_ids:
                 return True
-            return stopping_criteria is not None and bool(
+            return bool(other_criteria) and bool(
                 torch.any(
-                    stopping_criteria(input_ids=samples[:, prompt_len:end], scores=None)
+                    other_criteria(input_ids=samples[:, prompt_len:end], scores=None)
                 )
             )
 
@@ -441,7 +467,7 @@ class SEED(nn.Module):
                 draft_start = time.perf_counter()
 
             # --- Draft: one token at a time, starting from the last verified one.
-            draft_probs, candidates = [], []
+            draft_probs, draft_tokens, candidates = [], [], []
             for step in range(max_draft_len):
                 cur_pos = start_idx + step
                 logits = self._draft_logits(
@@ -455,7 +481,15 @@ class SEED(nn.Module):
                 )
                 samples[:, cur_pos : cur_pos + 1] = token
                 draft_probs.append(q)
-                confidence = q.max().item()
+                # One device-to-host sync per step: the token, then the top-10
+                # probabilities (the first is the confidence) and their ids.
+                top_probs, top_ids = q.topk(min(10, q.shape[-1]), dim=-1)
+                fetched = torch.cat(
+                    [token[0].double(), top_probs[0].double(), top_ids[0].double()]
+                ).tolist()
+                num_top = top_probs.shape[-1]
+                token_id, confidence = int(fetched[0]), fetched[1]
+                draft_tokens.append(token_id)
                 if tree_attn:
                     k = (
                         1
@@ -464,12 +498,14 @@ class SEED(nn.Module):
                             3 if confidence > 0.8 else (5 if confidence > 0.5 else 10)
                         )
                     )
-                    for token_id in (
-                        q.topk(min(k, q.shape[-1]), dim=-1).indices[0].tolist()
-                    ):
-                        if token_id != token.item():
-                            candidates.append((step, token_id))
-                if should_stop(cur_pos + 1) or (conf_seg and confidence < 0.7):
+                    candidates.extend(
+                        (step, int(top_id))
+                        for top_id in fetched[1 + num_top : 1 + num_top + k]
+                        if int(top_id) != token_id
+                    )
+                if should_stop(cur_pos + 1, token_id) or (
+                    conf_seg and confidence < 0.7
+                ):
                     break
 
             draft_len = len(draft_probs)
@@ -496,37 +532,38 @@ class SEED(nn.Module):
             main_len = main_inputs.shape[1]
             target_inputs, position_ids, attention_mask = main_inputs, None, None
             if candidates:
-                target_inputs = torch.cat(
+                cand_tokens, cand_steps = torch.tensor(
                     [
-                        main_inputs,
-                        torch.tensor(
-                            [[token for _, token in candidates]], device=device
-                        ),
+                        [token for _, token in candidates],
+                        [step for step, _ in candidates],
                     ],
-                    dim=1,
+                    device=device,
                 )
+                target_inputs = torch.cat([main_inputs, cand_tokens[None]], dim=1)
                 past_len = start_idx - 1
-                positions = list(range(past_len, past_len + main_len))
-                positions.extend(start_idx + step for step, _ in candidates)
-                position_ids = torch.tensor([positions], device=device)
+                position_ids = torch.cat(
+                    [
+                        torch.arange(past_len, past_len + main_len, device=device),
+                        start_idx + cand_steps,
+                    ]
+                )[None]
                 total_len = target_inputs.shape[1]
-                attention_mask = torch.full(
+                # Over the new tokens: the draft rows are causal; a candidate for
+                # step s sees the inputs of steps 0..s (draft columns 0..s) and
+                # itself. Everything attends to the whole cache.
+                cols = torch.arange(total_len, device=device)
+                visible = torch.cat(
+                    [
+                        cols[:main_len, None] >= cols,
+                        (cols <= cand_steps[:, None]) | (cols == cols[main_len:, None]),
+                    ]
+                )
+                attention_mask = torch.zeros(
                     (1, 1, total_len, past_len + total_len),
-                    float("-inf"),
                     dtype=self.target.dtype,
                     device=device,
                 )
-                attention_mask[..., :past_len] = 0
-                attention_mask[:, :, :main_len, past_len : past_len + main_len] = (
-                    torch.triu(
-                        torch.full((main_len, main_len), float("-inf"), device=device),
-                        diagonal=1,
-                    )
-                )
-                for i, (step, _) in enumerate(candidates):
-                    row = main_len + i
-                    attention_mask[:, :, row, past_len : past_len + step + 1] = 0
-                    attention_mask[:, :, row, past_len + row] = 0
+                attention_mask[0, 0, :, past_len:].masked_fill_(~visible, float("-inf"))
             hidden_states = self._target_forward(
                 target_inputs, past_key_values, position_ids, attention_mask
             )
@@ -547,10 +584,12 @@ class SEED(nn.Module):
                     .sum(dim=-1)
                 )
                 correction = target_tokens.gather(1, lengths[:, None]).squeeze(1)
-            accepted = lengths.item()
+            accepted, correction_id = torch.cat([lengths, correction]).tolist()
             final_accepted = accepted
             current_idx = start_idx + accepted
-            finished = accepted > 0 and should_stop(current_idx)
+            finished = accepted > 0 and should_stop(
+                current_idx, draft_tokens[accepted - 1]
+            )
             branch_index = None
             if not finished:
                 samples[:, current_idx] = correction
@@ -560,7 +599,7 @@ class SEED(nn.Module):
                         (
                             i
                             for i, (step, token) in enumerate(candidates)
-                            if step == accepted and token == correction.item()
+                            if step == accepted and token == correction_id
                         ),
                         None,
                     )
@@ -568,16 +607,17 @@ class SEED(nn.Module):
                     # The reused branch token counts as accepted; its target
                     # continuation is a bonus token.
                     final_accepted += 1
-                finished = should_stop(current_idx)
+                finished = should_stop(current_idx, correction_id)
                 if branch_index is not None and not finished:
                     branch_scores = target_logits[:, main_len + branch_index]
-                    samples[:, current_idx : current_idx + 1] = (
+                    bonus = (
                         torch.multinomial(probabilities(branch_scores), 1)
                         if do_sample
                         else branch_scores.argmax(dim=-1, keepdim=True)
                     )
+                    samples[:, current_idx : current_idx + 1] = bonus
                     current_idx += 1
-                    finished = should_stop(current_idx)
+                    finished = should_stop(current_idx, bonus.item())
 
             # Correction/bonus tokens do not count as accepted (except a reused
             # tree token, above); terminal rounds are included.
@@ -593,10 +633,16 @@ class SEED(nn.Module):
 
             # Keep target states for the accepted prefix and any reused tree
             # branch, excluding the final target continuation and all siblings.
-            indices = list(range(start_idx + accepted))
+            indices = torch.arange(start_idx + accepted, device=device)
             if branch_index is not None:
-                indices.append(start_idx - 1 + main_len + branch_index)
-            indices = torch.tensor(indices, device=device, dtype=torch.long)
+                indices = torch.cat(
+                    [
+                        indices,
+                        torch.full(
+                            (1,), start_idx - 1 + main_len + branch_index, device=device
+                        ),
+                    ]
+                )
             for layer in range(len(past_key_values)):
                 past_key_values.key_cache[layer] = past_key_values.key_cache[
                     layer

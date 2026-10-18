@@ -1,6 +1,7 @@
 # Evaluation config (scripts/eval.py). See bash_scripts/evaluate_*.sh.
 defaults:
   - task: ???  # gsm8k | math500 | humaneval | mbpp
+  - baseline: null  # eagle3 | dflash: speculative decoding baselines on model_path
   - override hydra/job_logging: disabled
   - override hydra/hydra_logging: disabled
   - _self_
@@ -40,3 +41,5 @@ seed_decoding:
   block_size: null  # draft length when conf_seg is off
   conf_seg: true
   tree_attn: true
+# SEED only: fold the drafter's LoRA adapters into separate bf16 drafter weights
+merge_lora: true

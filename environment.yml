@@ -342,7 +342,9 @@ dependencies:
       - torchvision==0.22.0
       - tqdm==4.67.1
       - tqdm-multiprocess==0.0.11
-      - transformers==4.52.4
+      # >=4.53.1 for EAGLE-3 (transformers.masking_utils); <4.54 for mosaicml and
+      # for SEED's in-place DynamicCache.key_cache/value_cache edits.
+      - transformers==4.53.1
       - triton==3.3.0
       - twisted==25.5.0
       - txaio==25.9.2

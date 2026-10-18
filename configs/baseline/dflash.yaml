@@ -1,0 +1,6 @@
+# DFlash baseline (src/models/baselines.py); select with `baseline=dflash`.
+_target_: src.models.baselines.DFlash
+target_model_path: ${model_path}
+draft_model_path: z-lab/Qwen3-4B-DFlash-b16  # trained for enable_thinking=false
+block_size: null  # null: the drafter's training block size (16)
+torch_dtype: bfloat16

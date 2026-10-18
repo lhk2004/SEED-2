@@ -18,7 +18,6 @@ DO_SAMPLE=${DO_SAMPLE:-false}
 TEMPERATURE=${TEMPERATURE:-1.0}
 GSM8K_NUM_SAMPLES=${GSM8K_NUM_SAMPLES:-null}  # null for all, or an integer
 
-# Zero-shot non-thinking chat prompt; stopping criteria see only generated tokens.
 accelerate launch scripts/eval.py \
   task=gsm8k \
   task.limit="${GSM8K_NUM_SAMPLES}" \

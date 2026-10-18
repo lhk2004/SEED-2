@@ -7,14 +7,23 @@ source setup_env.sh
 set -u
 
 # Qwen3-4B drafter fine-tuned for 3 epochs, with an eval loss of 1.02
-MODEL_PATH=${MODEL_PATH:-/data/shared_data/hankun/outputs/tulu3_4096_seed_lora_block8_4b_dec2_rank512_lr2e-4_bsz32_20261010_001519}
-QWEN_MODEL=${QWEN_MODEL:-Qwen/Qwen3-4B}
+# MODEL_PATH=${MODEL_PATH:-/data/shared_data/hankun/outputs/tulu3_4096_seed_lora_block8_4b_dec2_rank512_lr2e-4_bsz32_20261010_001519}
+# Qwen3-8B drafter fine-tuned for 3 epochs, with an eval loss of 1.05
+MODEL_PATH=${MODEL_PATH:-/data/shared_data/hankun/outputs/tulu3_4096_seed_lora_block8_8b_dec2_rank512_lr8e-5_bsz32_20261015_221131}
+if [[ "${MODEL_PATH}" == *"4b"* ]]; then
+  QWEN_MODEL=${QWEN_MODEL:-Qwen/Qwen3-4B}
+elif [[ "${MODEL_PATH}" == *"8b"* ]]; then
+  QWEN_MODEL=${QWEN_MODEL:-Qwen/Qwen3-8B}
+else
+  echo "Error: MODEL_PATH must contain either '4b' or '8b' to determine the QWEN model."
+  exit 1
+fi
 CKPT=${CKPT:-best}
 MAX_NEW_TOKENS=${MAX_NEW_TOKENS:-4096}
 BLOCK_SIZE=${BLOCK_SIZE:-4}
 CONF_SEG=${CONF_SEG:-true}
 TREE_ATTN=${TREE_ATTN:-true}
-DO_SAMPLE=${DO_SAMPLE:-false}
+DO_SAMPLE=${DO_SAMPLE:-true}
 TEMPERATURE=${TEMPERATURE:-1.0}
 MATH500_NUM_SAMPLES=${MATH500_NUM_SAMPLES:-null}  # null for all, or an integer
 

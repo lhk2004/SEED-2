@@ -14,13 +14,20 @@ from transformers import AutoModelForCausalLM
 
 from src.checkpoint import load_model_from_run
 from src.evaluation.lm_eval_adapter import LMEvalAdapter, build_stopping_criteria
+from src.models.seed import SEED
 from src.utils import count_parameters, format_number, register_resolvers, set_seed
 
 
 def load_model(cfg: DictConfig, device: torch.device) -> torch.nn.Module:
-    """`model_path` is a training run directory or a Hugging Face model id/path."""
+    """`model_path` is a training run directory or a Hugging Face model id/path;
+    `baseline` (eagle3 | dflash) adds that drafter to the Hugging Face model."""
+    if cfg.get("baseline") is not None:
+        return hydra.utils.instantiate(cfg.baseline, device=device)
     if os.path.exists(os.path.join(cfg.model_path, "config.yaml")):
-        return load_model_from_run(cfg.model_path, cfg.ckpt_file, device=device)
+        model = load_model_from_run(cfg.model_path, cfg.ckpt_file, device=device)
+        if cfg.merge_lora and isinstance(model, SEED):
+            model.drafter.merge_lora()
+        return model
     kwargs = {} if cfg.torch_dtype is None else {"torch_dtype": cfg.torch_dtype}
     model = AutoModelForCausalLM.from_pretrained(
         cfg.model_path, trust_remote_code=True, **kwargs

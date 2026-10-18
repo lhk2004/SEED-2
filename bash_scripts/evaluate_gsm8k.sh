@@ -13,8 +13,6 @@ DO_SAMPLE=${DO_SAMPLE:-false}
 TEMPERATURE=${TEMPERATURE:-1.0}
 GSM8K_NUM_SAMPLES=${GSM8K_NUM_SAMPLES:-null}  # null for all, or an integer
 
-# Plain Hugging Face generation (stops at EOS / max_new_tokens), with the same
-# zero-shot non-thinking chat prompt as the SEED evaluation.
 accelerate launch scripts/eval.py \
   task=gsm8k \
   task.limit="${GSM8K_NUM_SAMPLES}" \
