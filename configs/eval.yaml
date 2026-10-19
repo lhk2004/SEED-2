@@ -37,6 +37,8 @@ generation_config:
 # SEED only (stops on generated tokens): any of eos, max_new_tokens, boxed_answer
 stopping_criteria: []
 # SEED only: options of SEED.generate
+# (SEEDDiffusion.generate takes block_size only, default the training block
+# size; see bash_scripts/evaluate_math500_lora_diff.sh.)
 seed_decoding:
   block_size: null  # draft length when conf_seg is off
   conf_seg: true

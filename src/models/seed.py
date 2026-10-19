@@ -242,13 +242,14 @@ class SEED(nn.Module):
                 use_cache=True,
             ).past_key_values
 
+        drafter_tokens = self._drafter_token_mask(attention_mask)
         drafter_mask = (
             self.block_mask[None, ...]
-            & attention_mask.repeat(1, 2)[:, None, :]
-            & attention_mask[..., None]
+            & torch.cat([attention_mask, drafter_tokens], dim=1)[:, None, :]
+            & drafter_tokens[..., None]
         )[:, None, ...]
         logits = self.drafter(
-            self.target.model.embed_tokens(input_ids),
+            self.target.model.embed_tokens(self._drafter_input_ids(input_ids)),
             attention_mask=additive_mask(drafter_mask, torch.float),
             position_ids=position_ids,
             past_key_values=past_key_values,
@@ -270,6 +271,16 @@ class SEED(nn.Module):
             log_probs = torch.log_softmax(shifted_logits, dim=-1)
             nlls = -log_probs.gather(-1, targets.unsqueeze(-1)).squeeze(-1) * mask
         return LMOutput(loss=loss, logits=logits, nlls=nlls, loss_mask=mask)
+
+    def _drafter_input_ids(self, input_ids: torch.LongTensor) -> torch.LongTensor:
+        """Tokens the drafter embeds during training (the target and the loss
+        always see ``input_ids``). SEED's drafter sees every token."""
+        return input_ids
+
+    def _drafter_token_mask(self, attention_mask: torch.LongTensor) -> torch.LongTensor:
+        """Drafter positions that attend and are attended to during training
+        (SEED: the non-padding ones)."""
+        return attention_mask
 
     def _target_forward(
         self,

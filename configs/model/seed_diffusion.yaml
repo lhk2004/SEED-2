@@ -1,0 +1,11 @@
+_target_: src.models.seed_diffusion.SEEDDiffusion
+pretrained_model_name_or_path: ${pretrained_model_name_or_path}  # target (verifier)
+max_seq_length: ${max_seq_length}
+block_size: 8  # tokens per block: the last verified token + block_size - 1 [MASK]s
+num_draft_layers: 2
+lora_rank: 32
+lora_alpha: 64.0
+lora_dropout: 0.0
+torch_dtype: bfloat16
+train_on_context: false
+mask_token_id: 151669  # [MASK] embedding row (DFlash's; unused by Qwen3's tokenizer)

@@ -1,4 +1,4 @@
-# SEED
+# SEED-2
 
 Speculative decoding with a LoRA drafter on top of a frozen target LLM. The
 target (verifier) is an unmodified pretrained causal LM. The drafter reuses its
