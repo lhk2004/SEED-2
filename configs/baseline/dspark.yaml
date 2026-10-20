@@ -1,0 +1,6 @@
+# DSpark baseline (src/models/baselines.py); select with `baseline=dspark`.
+_target_: src.models.baselines.DSpark
+target_model_path: ${model_path}
+draft_model_path: deepseek-ai/dspark_qwen3_4b_block7  # trained for enable_thinking=false
+confidence_threshold: 0.0  # 0: verify the whole block, as in DeepSpec's evaluation
+torch_dtype: bfloat16

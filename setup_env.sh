@@ -17,7 +17,7 @@ fi
 
 # W&B / HF Setup
 source "${HOME}/setup_discdiff.sh"
-export HF_HOME="${PWD}/.hf_cache"
+export HF_HOME=/data/shared_data/hankun/huggingface
 echo "HuggingFace cache set to '${HF_HOME}'."
 
 # Add root directory to PYTHONPATH to enable module imports

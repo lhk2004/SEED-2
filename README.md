@@ -4,8 +4,8 @@ Speculative decoding with a LoRA drafter on top of a frozen target LLM. The
 target (verifier) is an unmodified pretrained causal LM. The drafter reuses its
 last few decoder layers, final norm, and LM head with LoRA adapters, and attends
 to the target's KV cache for already-verified tokens. Only the adapters are
-trained. An autoregressive (AR) baseline and the EAGLE-3 and DFlash speculative
-decoding baselines are included for comparison.
+trained. An autoregressive (AR) baseline and the EAGLE-3, DFlash, and DSpark
+speculative decoding baselines are included for comparison.
 
 ## Layout
 
@@ -15,7 +15,8 @@ configs/        Hydra configs: train.yaml, eval.yaml, model/, task/
 scripts/        train.py, eval.py, data/ (dataset generation + tokenization)
 src/
   models/       seed.py (SEED, Drafter), lora.py, ar.py, common.py,
-                baselines.py (EAGLE-3 and DFlash, evaluated like SEED)
+                baselines.py (EAGLE-3, DFlash, DSpark, evaluated like SEED),
+                dspark_drafter.py (port of DeepSpec's drafter)
   data.py       tokenized datasets and the padding collator
   training.py   Composer wrapper, metrics, best-checkpoint callback
   checkpoint.py loading trained runs (including runs saved by older versions)
@@ -42,6 +43,12 @@ variables (see the top of each script); extra Hydra overrides can be appended.
 | `run_train_seed_tulu3_lora.sh` | Tokenize the distilled data (if needed) and train the SEED drafter |
 | `evaluate_{gsm8k,math500,humaneval,mbpp}_lora.sh` | Evaluate a SEED run (`MODEL_PATH=<run dir>`) |
 | `evaluate_{gsm8k,math500,humaneval,mbpp}.sh` | Evaluate the untuned model with plain autoregressive decoding |
-| `evaluate_math500_{eagle3,dflash}.sh` | Evaluate the EAGLE-3 / DFlash baselines (public Qwen3-4B drafters) |
+| `evaluate_math500_{eagle3,dflash,dspark}.sh` | Evaluate the EAGLE-3 / DFlash / DSpark baselines (public Qwen3-4B/8B drafters; see below) |
 
 HumanEval and MBPP are generation-only (no generated code is executed).
+
+DeepSeek's DeepSpec released DSpark drafters (`deepseek-ai/dspark_qwen3_{4b,8b}_block7`)
+together with DFlash drafters trained on the same data with the same recipe
+(`deepseek-ai/dflash_qwen3_{4b,8b}_block7`; pass them as `DRAFT_MODEL` to the DFlash
+script). Use those for a DSpark vs. DFlash comparison that differs only in the
+method; the z-lab DFlash drafters were trained on other data, with 16-token blocks.

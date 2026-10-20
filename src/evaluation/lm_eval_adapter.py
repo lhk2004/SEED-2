@@ -1,5 +1,5 @@
-"""lm-eval-harness adapter for SEED, EAGLE-3/DFlash baselines, and autoregressive
-(Hugging Face) models.
+"""lm-eval-harness adapter for SEED, EAGLE-3/DFlash/DSpark baselines, and
+autoregressive (Hugging Face) models.
 
 Prompts are rendered zero-shot with the tokenizer's chat template. Generations,
 throughput, and draft acceptance statistics are printed; responses are not scored.
@@ -21,7 +21,7 @@ from transformers import (
 )
 from transformers.generation import EosTokenCriteria, MaxLengthCriteria
 
-from src.models.baselines import EAGLE3, DFlash
+from src.models.baselines import EAGLE3, DFlash, DSpark
 from src.models.seed import SEED
 
 MATH_INSTRUCTION = (
@@ -191,8 +191,8 @@ class LMEvalAdapter(LM):
     ):
         """
         Args:
-            model: A `SEED`, `EAGLE3`, or `DFlash` model, or any model with
-                Hugging Face `generate`.
+            model: A `SEED`, `EAGLE3`, `DFlash`, or `DSpark` model, or any model
+                with Hugging Face `generate`.
             generation_config: Sampling settings (`do_sample`, `temperature`, ...).
                 Used as given: the model's own generation defaults never apply.
             stopping_criteria: Used by SEED only; the baselines and Hugging Face
@@ -255,7 +255,7 @@ class LMEvalAdapter(LM):
                 **self.seed_decoding,
             )
             return output.sequences, output
-        if isinstance(self.model, EAGLE3 | DFlash):
+        if isinstance(self.model, EAGLE3 | DFlash | DSpark):
             output = self.model.generate(
                 input_ids,
                 generation_config=self.generation_config,

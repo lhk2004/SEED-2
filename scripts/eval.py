@@ -20,7 +20,8 @@ from src.utils import count_parameters, format_number, register_resolvers, set_s
 
 def load_model(cfg: DictConfig, device: torch.device) -> torch.nn.Module:
     """`model_path` is a training run directory or a Hugging Face model id/path;
-    `baseline` (eagle3 | dflash) adds that drafter to the Hugging Face model."""
+    `baseline` (eagle3 | dflash | dspark) adds that drafter to the Hugging Face
+    model."""
     if cfg.get("baseline") is not None:
         return hydra.utils.instantiate(cfg.baseline, device=device)
     if os.path.exists(os.path.join(cfg.model_path, "config.yaml")):

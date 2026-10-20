@@ -1,7 +1,7 @@
 # Evaluation config (scripts/eval.py). See bash_scripts/evaluate_*.sh.
 defaults:
   - task: ???  # gsm8k | math500 | humaneval | mbpp
-  - baseline: null  # eagle3 | dflash: speculative decoding baselines on model_path
+  - baseline: null  # eagle3 | dflash | dspark: speculative decoding baselines on model_path
   - override hydra/job_logging: disabled
   - override hydra/hydra_logging: disabled
   - _self_
