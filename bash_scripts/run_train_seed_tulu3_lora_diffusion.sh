@@ -13,14 +13,14 @@ DISTILL_DATA_ROOT=${DISTILL_DATA_ROOT:-/data/shared_data/hankun/datasets/tulu3_q
 DISTILL_FILE_STEM=${DISTILL_FILE_STEM:-tulu3_qwen3_8b}
 DISTILL_RAW_FILE=${DISTILL_RAW_FILE:-${DISTILL_DATA_ROOT}/${DISTILL_FILE_STEM}.jsonl}
 DISTILL_TOKENIZER_NAME_OR_PATH=${DISTILL_TOKENIZER_NAME_OR_PATH:-Qwen/Qwen3-8B}
-OUTPUT_ROOT=${OUTPUT_ROOT:-/data/shared_data/hankun/outputs}
-BLOCK_SIZE=${BLOCK_SIZE:-16}  # tokens per block: the last verified token + BLOCK_SIZE - 1 [MASK]s
+OUTPUT_ROOT=${OUTPUT_ROOT:-data/shared_data/hankun/outputs}
+BLOCK_SIZE=${BLOCK_SIZE:-7}  # tokens per block: the last verified token + BLOCK_SIZE - 1 [MASK]s
 MASK_TOKEN_ID=${MASK_TOKEN_ID:-151669}  # [MASK] embedding row (DFlash's; unused by Qwen3's tokenizer)
-N_DECODER_LAYERS=${N_DECODER_LAYERS:-2}
-LORA_RANK=${LORA_RANK:-512}
-LORA_ALPHA=${LORA_ALPHA:-1024}
+N_DECODER_LAYERS=${N_DECODER_LAYERS:-5}
+LORA_RANK=${LORA_RANK:-256}
+LORA_ALPHA=${LORA_ALPHA:-512}
 LORA_DROPOUT=${LORA_DROPOUT:-0.0}
-LR=${LR:-3e-4}
+LR=${LR:-1e-4}
 WARMUP_DURATION=${WARMUP_DURATION:-0.01dur}
 ALPHA_F=${ALPHA_F:-0.5}
 MAX_DURATION=${MAX_DURATION:-3ep}
@@ -29,6 +29,20 @@ MICRO_BATCH_SIZE=${MICRO_BATCH_SIZE:-1}
 NUM_WORKERS=${NUM_WORKERS:-0}
 SAVE_INTERVAL=${SAVE_INTERVAL:-1000ba}
 EVAL_INTERVAL=${EVAL_INTERVAL:-1000ba}
+# DFlash loss decay: draft token k of a block gets weight exp(-(k-1)/gamma) (null = uniform).
+# DFlash (App. A.1) uses gamma 7/5/4 for its blocks of 16/10/8, which draft 15/9/7 tokens;
+# a block here drafts BLOCK_SIZE tokens, so either reading of "block size" gives the same gamma.
+if [[ -z "${LOSS_DECAY_GAMMA:-}" ]]; then
+  case "${BLOCK_SIZE}" in
+    7|8) LOSS_DECAY_GAMMA=4 ;;
+    9|10) LOSS_DECAY_GAMMA=5 ;;
+    15|16) LOSS_DECAY_GAMMA=7 ;;
+    *)
+      echo "No DFlash gamma for BLOCK_SIZE=${BLOCK_SIZE}; set LOSS_DECAY_GAMMA (or null)." >&2
+      exit 1
+      ;;
+  esac
+fi
 
 if [[ -z "${CUDA_VISIBLE_DEVICES:-}" ]]; then
   NUM_VISIBLE_DEVICES=${NUM_VISIBLE_DEVICES:-1}
@@ -38,10 +52,6 @@ else
 fi
 if (( BATCH_SIZE < NUM_VISIBLE_DEVICES * MICRO_BATCH_SIZE || BATCH_SIZE % (NUM_VISIBLE_DEVICES * MICRO_BATCH_SIZE) != 0 )); then
   echo "BATCH_SIZE must be divisible by NUM_VISIBLE_DEVICES * MICRO_BATCH_SIZE." >&2
-  exit 1
-fi
-if (( MAX_SEQ_LEN % BLOCK_SIZE != 0 )); then
-  echo "MAX_SEQ_LEN must be divisible by BLOCK_SIZE." >&2
   exit 1
 fi
 
@@ -87,7 +97,7 @@ else
 fi
 
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-RUN_NAME=${RUN_NAME:-tulu3_${MAX_SEQ_LEN}_seed_lora_diffusion_block${BLOCK_SIZE}_${MODEL_TAG}_dec${N_DECODER_LAYERS}_rank${LORA_RANK}_lr${LR}_bsz${BATCH_SIZE}_${TIMESTAMP}}
+RUN_NAME=${RUN_NAME:-tulu3_${MAX_SEQ_LEN}_seed_lora_diffusion_block${BLOCK_SIZE}_${MODEL_TAG}_dec${N_DECODER_LAYERS}_rank${LORA_RANK}_gamma${LOSS_DECAY_GAMMA}_lr${LR}_bsz${BATCH_SIZE}_${TIMESTAMP}}
 RUN_DIR="${OUTPUT_ROOT}/${RUN_NAME}"
 mkdir -p "${RUN_DIR}"
 
@@ -109,6 +119,7 @@ composer -n "${NUM_VISIBLE_DEVICES}" scripts/train.py \
   model.lora_alpha="${LORA_ALPHA}" \
   model.lora_dropout="${LORA_DROPOUT}" \
   model.train_on_context=false \
+  model.loss_decay_gamma="${LOSS_DECAY_GAMMA}" \
   training.global_batch_size="${BATCH_SIZE}" \
   training.grad_accum="$(( BATCH_SIZE / NUM_VISIBLE_DEVICES / MICRO_BATCH_SIZE ))" \
   composer.optimizer.lr="${LR}" \

@@ -19,7 +19,7 @@ causal) change. No new parameters are added.
 | Draft length per round        | `BLOCK_SIZE`, or adaptive with `CONF_SEG` | `BLOCK_SIZE`                                 |
 | Tree verification             | optional (`TREE_ATTN`)                    | none                                         |
 | Trainable parameters          | LoRA adapters                             | the same LoRA adapters                       |
-| Training loss                 | next-token cross-entropy                  | the same                                     |
+| Training loss                 | next-token cross-entropy                  | the same, with DFlash's position decay       |
 | Training context              | 2L (target KV + drafter states)           | the same                                     |
 
 ## How a block works
@@ -74,8 +74,16 @@ block is treated exactly like one inference round:
    SEED-LoRA uses the same mask except that its drafter block (■ on the right)
    is lower-triangular (causal).
 4. **Loss:** next-token cross-entropy (negative log-likelihood) on response
-   tokens, unchanged from SEED-LoRA. The output at position `i` is scored
+   tokens, as in SEED-LoRA. The output at position `i` is scored
    against token `i + 1`, so each block is trained to produce its `B` drafts.
+   As in DFlash (Eq. 4), draft token `k` of a block (`k = 1` for the
+   prediction at the last verified token) is weighted by
+   `exp(-(k - 1) / γ)` (`model.loss_decay_gamma`; `null` weights all
+   positions equally), and the loss is the weighted mean `Σ w·CE / Σ w` over
+   the loss tokens. A rejected early draft token makes all later ones
+   worthless, so the early tokens count more. `eval/loss` (which picks the
+   best checkpoint) is weighted too. `eval/NLL` is not, so it can be compared
+   across values of `γ`.
 
 Two details keep training identical to inference:
 
@@ -141,20 +149,29 @@ CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 bash bash_scripts/run_train_seed_tulu3_lora
 # For example, a different model, block size, and learning rate:
 CUDA_VISIBLE_DEVICES=0,1,2,3 MODEL_NAME_OR_PATH=Qwen/Qwen3-4B BLOCK_SIZE=16 LR=2e-4 \
   bash bash_scripts/run_train_seed_tulu3_lora_diffusion.sh
+
+# Uniform loss weights (no decay):
+LOSS_DECAY_GAMMA=null bash bash_scripts/run_train_seed_tulu3_lora_diffusion.sh
 ```
 
 The script is `run_train_seed_tulu3_lora.sh` with `model=seed_diffusion`. It
 takes the same environment variables (`MODEL_NAME_OR_PATH`, `MAX_SEQ_LEN`,
 `BLOCK_SIZE`, `N_DECODER_LAYERS`, `LORA_RANK`, `LORA_ALPHA`, `LORA_DROPOUT`,
 `LR`, `BATCH_SIZE`, `MICRO_BATCH_SIZE`, `MAX_DURATION`, …), uses the same
-self-distilled Tulu 3 data, and adds one more:
+self-distilled Tulu 3 data, and adds two more:
 
-| Variable        | Default  | Meaning                                    |
-| --------------- | -------- | ------------------------------------------ |
-| `MASK_TOKEN_ID` | `151669` | Embedding row used as the `[MASK]` input   |
+| Variable           | Default                  | Meaning                                              |
+| ------------------ | ------------------------ | ---------------------------------------------------- |
+| `MASK_TOKEN_ID`    | `151669`                 | Embedding row used as the `[MASK]` input             |
+| `LOSS_DECAY_GAMMA` | DFlash's γ for the block | Loss decay `exp(-(k-1)/γ)`; `null` = uniform weights |
+
+DFlash (Appendix A.1) uses γ = 7, 5, 4 for its blocks of 16, 10, 8 tokens,
+which draft 15, 9, 7 tokens. A block here drafts `BLOCK_SIZE` tokens, so the
+script uses γ = 4 for `BLOCK_SIZE` 7 or 8, 5 for 9 or 10, and 7 for 15 or 16.
+For any other block size it stops and asks for `LOSS_DECAY_GAMMA`.
 
 Runs are saved to
-`${OUTPUT_ROOT}/tulu3_<len>_seed_lora_diffusion_block<B>_<model>_dec<N>_rank<r>_lr<lr>_bsz<bsz>_<timestamp>`.
+`${OUTPUT_ROOT}/tulu3_<len>_seed_lora_diffusion_block<B>_<model>_dec<N>_rank<r>_gamma<γ>_lr<lr>_bsz<bsz>_<timestamp>`.
 The LoRA weights always start fresh.
 
 ### Evaluate on MATH-500

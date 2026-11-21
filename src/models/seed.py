@@ -263,10 +263,17 @@ class SEED(nn.Module):
         )[:, 1:]
         shifted_logits = logits[:, :-1, :]
         flat_mask = mask.contiguous().view(-1).bool()
-        loss = nn.functional.cross_entropy(
-            shifted_logits.contiguous().view(-1, logits.size(-1))[flat_mask],
-            targets.contiguous().view(-1)[flat_mask],
-        )
+        flat_logits = shifted_logits.contiguous().view(-1, logits.size(-1))[flat_mask]
+        flat_targets = targets.contiguous().view(-1)[flat_mask]
+        weights = self._loss_weights(seq_len - 1, input_ids.device)
+        if weights is None:
+            loss = nn.functional.cross_entropy(flat_logits, flat_targets)
+        else:
+            flat_weights = weights.expand_as(mask).reshape(-1)[flat_mask]
+            token_losses = nn.functional.cross_entropy(
+                flat_logits, flat_targets, reduction="none"
+            )
+            loss = (flat_weights * token_losses).sum() / flat_weights.sum()
         with torch.no_grad():
             log_probs = torch.log_softmax(shifted_logits, dim=-1)
             nlls = -log_probs.gather(-1, targets.unsqueeze(-1)).squeeze(-1) * mask
@@ -281,6 +288,14 @@ class SEED(nn.Module):
         """Drafter positions that attend and are attended to during training
         (SEED: the non-padding ones)."""
         return attention_mask
+
+    def _loss_weights(
+        self, num_targets: int, device: torch.device
+    ) -> torch.Tensor | None:
+        """Per-target loss weights of shape (num_targets,), or None for the plain
+        token mean. With weights, the loss is the weighted mean over loss tokens;
+        the `nlls` metric stays unweighted."""
+        return None
 
     def _target_forward(
         self,

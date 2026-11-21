@@ -6,7 +6,7 @@ cd "${SCRIPT_DIR}/.."
 source setup_env.sh
 set -u
 
-DRAFT_MODEL=${DRAFT_MODEL:-deepseek-ai/dspark_qwen3_4b_block7}
+DRAFT_MODEL=${DRAFT_MODEL:-deepseek-ai/dspark_qwen3_8b_block7}
 if [[ "${DRAFT_MODEL,,}" == *"4b"* ]]; then
   QWEN_MODEL=${QWEN_MODEL:-Qwen/Qwen3-4B}
 elif [[ "${DRAFT_MODEL,,}" == *"8b"* ]]; then
@@ -17,7 +17,7 @@ else
 fi
 CONFIDENCE_THRESHOLD=${CONFIDENCE_THRESHOLD:-0.0}  # 0.0: verify the whole block (7 tokens)
 MAX_NEW_TOKENS=${MAX_NEW_TOKENS:-4096}
-DO_SAMPLE=${DO_SAMPLE:-true}
+DO_SAMPLE=${DO_SAMPLE:-false}
 TEMPERATURE=${TEMPERATURE:-1.0}
 MATH500_NUM_SAMPLES=${MATH500_NUM_SAMPLES:-null}  # null for all, or an integer
 

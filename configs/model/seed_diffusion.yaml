@@ -9,3 +9,4 @@ lora_dropout: 0.0
 torch_dtype: bfloat16
 train_on_context: false
 mask_token_id: 151669  # [MASK] embedding row (DFlash's; unused by Qwen3's tokenizer)
+loss_decay_gamma: null  # DFlash loss decay exp(-(k-1)/gamma) on draft token k; null = uniform

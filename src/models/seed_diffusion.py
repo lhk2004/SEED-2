@@ -17,7 +17,10 @@ a time, the drafter fills a block of [MASK] tokens in a single forward pass
 Training reuses SEED's blocks of the padded sequence (the drafter's keys are the
 target's states of earlier blocks followed by the drafter's own states, i.e. a
 context of 2 * seq_len) with every token except the first of each block replaced
-by [MASK], and SEED's next-token cross-entropy loss.
+by [MASK], and SEED's next-token cross-entropy loss. Optionally, as in DFlash
+(Eq. 4), the loss of draft token k of a block is weighted by
+exp(-(k - 1) / gamma), so the early draft tokens, on which acceptance of all
+later ones depends, count more.
 
 [MASK] is the target's frozen embedding row ``mask_token_id`` (default 151669,
 DFlash's choice: a row of Qwen3's embedding matrix that its tokenizer never
@@ -62,19 +65,32 @@ def crop_cache(past_key_values: DynamicCache, length: int) -> None:
 
 
 class SEEDDiffusion(SEED):
-    def __init__(self, mask_token_id: int = 151669, **kwargs):
+    def __init__(
+        self,
+        mask_token_id: int = 151669,
+        loss_decay_gamma: float | None = None,
+        **kwargs,
+    ):
         """
         Args:
             mask_token_id: Token whose (frozen) target embedding is the [MASK]
                 input of the drafter.
+            loss_decay_gamma: DFlash's loss decay: draft token k of a block
+                (k = 1 for the prediction at the last verified token) gets
+                weight exp(-(k - 1) / gamma). None trains all positions
+                equally. DFlash uses 7, 5, 4 for its blocks of 16, 10, 8,
+                which draft 15, 9, 7 tokens; a block here drafts ``block_size``.
             kwargs: Arguments of `SEED`; ``block_size`` is the number of tokens
                 per training block (the last verified token and its [MASK]s).
         """
+        if loss_decay_gamma is not None and not loss_decay_gamma > 0:
+            raise ValueError("loss_decay_gamma must be positive (or None).")
         super().__init__(**kwargs)
         num_embeddings = self.target.get_input_embeddings().num_embeddings
         if not 0 <= mask_token_id < num_embeddings:
             raise ValueError(f"mask_token_id must be in [0, {num_embeddings}).")
         self.mask_token_id = mask_token_id
+        self.loss_decay_gamma = loss_decay_gamma
         self.block_mask = drafter_diffusion_mask(self.max_seq_length, self.block_size)
 
     def _drafter_input_ids(self, input_ids: torch.LongTensor) -> torch.LongTensor:
@@ -93,6 +109,16 @@ class SEEDDiffusion(SEED):
         return heads.repeat_interleave(self.block_size, dim=1)[
             :, : attention_mask.shape[1]
         ]
+
+    def _loss_weights(
+        self, num_targets: int, device: torch.device
+    ) -> torch.Tensor | None:
+        """The output at position p predicts draft token k = p % block_size + 1
+        of its block, weighted exp(-(k - 1) / loss_decay_gamma)."""
+        if self.loss_decay_gamma is None:
+            return None
+        offsets = torch.arange(num_targets, device=device) % self.block_size
+        return torch.exp(-offsets.float() / self.loss_decay_gamma)
 
     @torch.inference_mode()
     def generate(
